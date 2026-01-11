@@ -115,8 +115,10 @@ RUN if [ -f "${WORKSPACE}/hy-motion/requirements.txt" ]; then \
 # -----------------------------
 RUN git clone https://github.com/VAST-AI-Research/TripoSR.git ${WORKSPACE}/triposr
 
-# Option A: use main venv (simple, less isolation)
-# If TripoSR has a requirements file:
+# Remove CUDA-heavy optional dependency that requires full CUDA toolkit
+RUN sed -i '/torchmcubes/d' ${WORKSPACE}/triposr/requirements.txt
+
+# Install TripoSR dependencies
 RUN if [ -f "${WORKSPACE}/triposr/requirements.txt" ]; then \
         pip install --no-cache-dir -r ${WORKSPACE}/triposr/requirements.txt; \
     fi
@@ -169,5 +171,6 @@ RUN echo '#!/usr/bin/env bash\n' \
 # Default command: start ComfyUI; you can change this or override in RunPod
 EXPOSE 8188
 CMD ["/bin/bash", "-c", "source /workspace/venv/bin/activate && /workspace/scripts/check_gpu.py && /workspace/scripts/start_comfyui.sh"]
+
 
 
