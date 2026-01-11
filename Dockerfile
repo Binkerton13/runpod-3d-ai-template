@@ -93,10 +93,11 @@ RUN mkdir -p /opt && \
 # Replace URL with the actual UniRig repo
 RUN git clone https://github.com/VAST-AI-Research/UniRig.git ${WORKSPACE}/unirig
 
-# If UniRig has a requirements file, install it
-RUN if [ -f "${WORKSPACE}/unirig/requirements.txt" ]; then \
-        pip install --no-cache-dir -r ${WORKSPACE}/unirig/requirements.txt; \
-    fi
+# Patch UniRig requirements to remove bpy (Linux cannot install bpy via pip)
+RUN sed -i '/bpy/d' ${WORKSPACE}/unirig/requirements.txt
+
+# Install UniRig dependencies
+RUN pip install --no-cache-dir -r ${WORKSPACE}/unirig/requirements.txt
 
 # -----------------------------
 # 7. Hy-Motion (3D motion model)
@@ -167,3 +168,4 @@ RUN echo '#!/usr/bin/env bash\n' \
 # Default command: start ComfyUI; you can change this or override in RunPod
 EXPOSE 8188
 CMD ["/bin/bash", "-c", "source /workspace/venv/bin/activate && /workspace/scripts/check_gpu.py && /workspace/scripts/start_comfyui.sh"]
+
