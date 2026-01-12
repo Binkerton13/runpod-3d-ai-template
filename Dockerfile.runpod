@@ -40,6 +40,7 @@ RUN if [ "${USE_CUDA}" = "1" ]; then \
     fi
 
 RUN pip install --no-cache-dir numpy scipy pillow opencv-python matplotlib scikit-image scikit-learn trimesh pygltflib
+RUN pip install --no-cache-dir transformers>=4.35.0 huggingface_hub
 
 # Create workspace scaffold (empty) — expect repos/models to be mounted at runtime
 RUN mkdir -p ${WORKSPACE}/models/checkpoints \

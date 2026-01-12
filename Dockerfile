@@ -65,7 +65,8 @@ RUN if [ "${USE_CUDA}" = "1" ]; then \
 RUN pip install --no-cache-dir \
     numpy scipy pillow opencv-python \
     matplotlib scikit-image scikit-learn \
-    trimesh pygltflib
+    trimesh pygltflib \
+    transformers>=4.35.0 huggingface_hub
 
 # -----------------------------
 # 4. ComfyUI
