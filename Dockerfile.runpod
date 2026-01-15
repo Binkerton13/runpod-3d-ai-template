@@ -34,16 +34,18 @@ RUN python3 -m venv /opt/venv && \
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
-# Create non-root user early and make venv/workspace writable by it
+# Create non-root user early
 RUN groupadd -r app || true && useradd -r -m -g app app || true
-RUN chown -R app:app ${VIRTUAL_ENV} ${WORKSPACE} || true
 
-
+# Install PyTorch as root, then fix permissions
 RUN if [ "${USE_CUDA}" = "1" ]; then \
         pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121; \
     else \
         pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; \
     fi
+
+# Fix venv and workspace ownership after PyTorch install
+RUN chown -R app:app ${VIRTUAL_ENV} ${WORKSPACE} || true
 
 USER app
 RUN pip install --no-cache-dir numpy scipy pillow opencv-python matplotlib scikit-image scikit-learn trimesh pygltflib huggingface_hub flask supervisor && \
