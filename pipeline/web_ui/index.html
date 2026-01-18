@@ -61,16 +61,17 @@
 
                 <!-- UDIM Tiles Upload -->
                 <div class="upload-section">
-                    <h3>UDIM Tiles</h3>
+                    <h3 title="Upload UDIM texture tiles (1001, 1002, etc.)">UDIM Tiles</h3>
                     <div class="drop-zone" id="udimDropZone"
                          ondrop="handleDrop(event, 'udim')"
                          ondragover="handleDragOver(event)"
-                         ondragleave="handleDragLeave(event)">
+                         ondragleave="handleDragLeave(event)"
+                         title="Drop UDIM PNG texture files (naming: 1001.png, 1002.png, etc.)">
                         <div class="drop-zone-content">
                             <span class="drop-icon">🖼️</span>
                             <p>Drop UDIM PNG files here</p>
                             <input type="file" id="udimInput" accept=".png" multiple onchange="handleFileSelect(event, 'udim')" style="display: none">
-                            <button class="btn btn-small" onclick="document.getElementById('udimInput').click()">Browse</button>
+                            <button class="btn btn-small" onclick="document.getElementById('udimInput').click()" title="Browse for UDIM tiles">Browse</button>
                         </div>
                         <div id="udimList" class="file-list"></div>
                     </div>
@@ -78,16 +79,17 @@
 
                 <!-- Style References -->
                 <div class="upload-section">
-                    <h3>Style References</h3>
+                    <h3 title="Upload reference images for texture style and appearance">Style References</h3>
                     <div class="drop-zone" id="styleRefDropZone"
                          ondrop="handleDrop(event, 'style_reference')"
                          ondragover="handleDragOver(event)"
-                         ondragleave="handleDragLeave(event)">
+                         ondragleave="handleDragLeave(event)"
+                         title="Drop style reference images to guide texture generation">
                         <div class="drop-zone-content">
                             <span class="drop-icon">🎨</span>
                             <p>Style/texture references</p>
                             <input type="file" id="styleRefInput" accept="image/*" multiple onchange="handleFileSelect(event, 'style_reference')" style="display: none">
-                            <button class="btn btn-small" onclick="document.getElementById('styleRefInput').click()">Browse</button>
+                            <button class="btn btn-small" onclick="document.getElementById('styleRefInput').click()" title="Browse for style references">Browse</button>
                         </div>
                         <div id="styleRefList" class="file-list"></div>
                     </div>
@@ -197,16 +199,16 @@
                 <div class="config-section">
                     <h3>Texture Generation</h3>
                     <div class="form-group">
-                        <label for="texturePrompt">Positive Prompt</label>
-                        <textarea id="texturePrompt" rows="3" placeholder="skin texture, realistic pores, high detail"></textarea>
+                        <label for="texturePrompt" title="Describe the desired texture appearance and details">Positive Prompt</label>
+                        <textarea id="texturePrompt" rows="3" placeholder="skin texture, realistic pores, high detail" title="Keywords and descriptions for the AI to generate"></textarea>
                     </div>
                     <div class="form-group">
-                        <label for="textureNegative">Negative Prompt</label>
-                        <textarea id="textureNegative" rows="2" placeholder="distortion, artifacts, blur"></textarea>
+                        <label for="textureNegative" title="Specify what to avoid in the texture">Negative Prompt</label>
+                        <textarea id="textureNegative" rows="2" placeholder="distortion, artifacts, blur" title="Keywords for the AI to avoid"></textarea>
                     </div>
                     <div class="form-group">
-                        <label for="textureSeed">Seed</label>
-                        <input type="number" id="textureSeed" value="12345">
+                        <label for="textureSeed" title="Random seed for reproducible results">Seed</label>
+                        <input type="number" id="textureSeed" value="12345" title="Use the same seed to reproduce exact results">
                     </div>
                 </div>
 
@@ -214,20 +216,20 @@
                 <div class="config-section">
                     <h3>Rigging</h3>
                     <div class="form-group">
-                        <label for="rigPreset">Preset</label>
-                        <select id="rigPreset">
+                        <label for="rigPreset" title="Choose bone structure preset for auto-rigging">Preset</label>
+                        <select id="rigPreset" title="Humanoid: Human character skeleton. Creature: Custom bone setup.">
                             <option value="humanoid_standard">Humanoid Standard</option>
                             <option value="humanoid_game">Humanoid Game</option>
                             <option value="creature">Creature</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="rigScale">Scale</label>
-                        <input type="number" id="rigScale" value="1.0" step="0.1">
+                        <label for="rigScale" title="Uniform scale factor for the rig">Scale</label>
+                        <input type="number" id="rigScale" value="1.0" step="0.1" title="1.0 = original size">
                     </div>
                     <div class="form-group">
-                        <label for="rigOrientation">Orientation</label>
-                        <select id="rigOrientation">
+                        <label for="rigOrientation" title="World space orientation for the character">Orientation</label>
+                        <select id="rigOrientation" title="Y-Up: Standard for most game engines. Z-Up: CAD and some 3D apps.">
                             <option value="Y_UP">Y-Up</option>
                             <option value="Z_UP">Z-Up</option>
                         </select>
@@ -238,36 +240,44 @@
                 <div class="config-section">
                     <h3>Animation</h3>
                     
-                    <!-- Prompt Library Selector -->
+                    <!-- Animation Mode Selector -->
                     <div class="form-group">
-                        <label for="promptCategory">Category</label>
-                        <select id="promptCategory" onchange="loadPromptCategory(this.value)">
-                            <option value="">Select category...</option>
-                            <option value="locomotion">Locomotion</option>
-                            <option value="idle">Idle</option>
-                            <option value="combat">Combat</option>
-                            <option value="gestures">Gestures</option>
-                            <option value="cinematic">Cinematic</option>
-                            <option value="transitions">Transitions</option>
-                            <option value="stylized">Stylized</option>
-                            <option value="traversal">Traversal</option>
-                            <option value="special">Special</option>
-                            <option value="custom">Custom</option>
+                        <label for="animMode">Mode</label>
+                        <select id="animMode" onchange="toggleAnimationMode(this.value)">
+                            <option value="library">Library Selection</option>
+                            <option value="custom">Custom Prompt</option>
                         </select>
                     </div>
                     
-                    <div class="form-group" id="promptSelectGroup" style="display: none;">
-                        <label for="promptSelect">Preset</label>
-                        <select id="promptSelect" onchange="loadPromptPreset(this.value)">
-                            <option value="">Select preset...</option>
-                        </select>
+                    <!-- Animation Library Selector -->
+                    <div id="libraryMode" style="display: block;">
+                        <div class="form-group">
+                            <label>Select Animations</label>
+                            <div class="animation-selection-info">
+                                <span id="selectedAnimCount">0 selected</span>
+                                <div>
+                                    <button type="button" class="btn-text" onclick="openPromptEditor()" title="Edit prompts for selected animations">✏️ Edit Prompts</button>
+                                    <button type="button" class="btn-text" onclick="clearAllAnimations()" title="Deselect all animations">Clear All</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="animationWarning" class="warning-box" style="display: none;">
+                            ⚠️ <span id="warningText">Multiple animations selected</span>
+                        </div>
+                        
+                        <div id="animationCheckboxes" class="animation-checkbox-container">
+                            <!-- Dynamically populated -->
+                        </div>
                     </div>
                     
-                    <!-- Motion Prompt Fields -->
-                    <div class="form-group">
-                        <label for="motionField">Motion</label>
-                        <textarea id="motionField" rows="3" placeholder="Describe the primary motion and mechanics"></textarea>
-                    </div>
+                    <!-- Custom Prompt Mode -->
+                    <div id="customMode" style="display: none;">
+                        <!-- Motion Prompt Fields -->
+                        <div class="form-group">
+                            <label for="motionField">Motion</label>
+                            <textarea id="motionField" rows="3" placeholder="Describe the primary motion and mechanics"></textarea>
+                        </div>
                     
                     <div class="form-group">
                         <label for="styleField">Style</label>
@@ -284,9 +294,10 @@
                         <input type="text" id="cameraField" value="Locked." placeholder="Camera behavior">
                     </div>
                     
-                    <div class="form-group">
-                        <label for="outputField">Output</label>
-                        <input type="text" id="outputField" value="30 frames, 30fps." placeholder="Duration and frame rate">
+                        <div class="form-group">
+                            <label for="outputField">Output</label>
+                            <input type="text" id="outputField" value="30 frames, 30fps." placeholder="Duration and frame rate">
+                        </div>
                     </div>
                 </div>
 
@@ -565,6 +576,32 @@
                     <button class="btn btn-secondary" onclick="autoSelectWorkflowModels()">🔄 Auto-Select</button>
                     <button class="btn btn-primary" onclick="saveWorkflowModelSelections()">💾 Save Selections</button>
                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Animation Prompt Editor Modal -->
+    <div id="promptEditorModal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>✏️ Edit Animation Prompts</h2>
+                <button class="close-btn" onclick="closePromptEditor()">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="prompt-editor-info">
+                    <p>Edit prompts for selected animations. Changes can be saved as project overrides or global defaults.</p>
+                </div>
+                
+                <div id="promptEditorContent" class="prompt-editor-content">
+                    <!-- Dynamically populated with animation editors -->
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closePromptEditor()">Cancel</button>
+                <button class="btn btn-secondary" onclick="savePromptOverrides('project')">💾 Save for Project</button>
+                <button class="btn btn-primary" onclick="savePromptOverrides('global')">🌐 Save as Defaults</button>
             </div>
         </div>
     </div>

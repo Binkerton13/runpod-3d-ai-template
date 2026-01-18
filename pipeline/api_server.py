@@ -438,6 +438,97 @@ def project_config(project_name):
         }), 500
 
 
+@app.route("/api/projects/<project_name>/animation_overrides", methods=["GET", "PUT"])
+def project_animation_overrides(project_name):
+    """Get or update project-specific animation prompt overrides"""
+    try:
+        overrides_path = WORKSPACE_ROOT / project_name / "pipeline/animation_overrides.json"
+        
+        if request.method == "GET":
+            if not overrides_path.exists():
+                return jsonify({
+                    "status": "success",
+                    "overrides": {}
+                })
+            
+            overrides = json.loads(overrides_path.read_text())
+            return jsonify({
+                "status": "success",
+                "overrides": overrides
+            })
+        
+        elif request.method == "PUT":
+            data = request.json
+            overrides = data.get("overrides", {})
+            
+            # Ensure pipeline directory exists
+            overrides_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Load existing overrides if they exist
+            existing = {}
+            if overrides_path.exists():
+                existing = json.loads(overrides_path.read_text())
+            
+            # Merge new overrides with existing
+            existing.update(overrides)
+            
+            # Save merged overrides
+            overrides_path.write_text(json.dumps(existing, indent=2))
+            
+            return jsonify({
+                "status": "success",
+                "message": f"Saved {len(overrides)} animation overrides",
+                "total_overrides": len(existing)
+            })
+            
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
+@app.route("/api/animation_library/update", methods=["PUT"])
+def update_animation_library():
+    """Update global animation library with new defaults"""
+    try:
+        data = request.json
+        updates = data.get("updates", {})
+        
+        library_path = Path(__file__).parent / "hy_motion_prompts/prompt_library.json"
+        
+        if not library_path.exists():
+            return jsonify({
+                "status": "error",
+                "message": "Prompt library not found"
+            }), 404
+        
+        # Load current library
+        library = json.loads(library_path.read_text())
+        
+        # Apply updates
+        updated_count = 0
+        for key, prompt_data in updates.items():
+            category, name = key.split(':', 1)
+            if category in library and name in library[category]:
+                library[category][name].update(prompt_data)
+                updated_count += 1
+        
+        # Save updated library
+        library_path.write_text(json.dumps(library, indent=2))
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Updated {updated_count} animations in library"
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
 @app.route("/api/projects/<project_name>/textures", methods=["GET"])
 def get_project_textures(project_name):
     """Get generated texture file paths for a project"""

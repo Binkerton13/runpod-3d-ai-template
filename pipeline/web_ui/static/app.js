@@ -1000,6 +1000,9 @@ async function loadProject(projectName) {
                 loadConfigIntoForm(data.config);
             }
             
+            // Load animation overrides for this project
+            await loadAnimationOverrides();
+            
             setStatus(`Loaded project: ${projectName}`);
         }
     } catch (error) {
@@ -1078,6 +1081,31 @@ async function saveConfig() {
         return;
     }
     
+    // Get animation mode and selections
+    const animMode = document.getElementById('animMode').value;
+    let animationConfig = {};
+    
+    if (animMode === 'library') {
+        // Get selected animations from library
+        const selectedAnims = getSelectedAnimations();
+        animationConfig = {
+            mode: 'library',
+            selections: selectedAnims,
+            enabled: currentMeshType === 'skeletal' && selectedAnims.length > 0
+        };
+    } else {
+        // Custom prompt mode
+        animationConfig = {
+            mode: 'custom',
+            motion: document.getElementById('motionField').value,
+            style: document.getElementById('styleField').value,
+            constraints: document.getElementById('constraintsField').value,
+            camera: document.getElementById('cameraField').value,
+            output: document.getElementById('outputField').value,
+            enabled: currentMeshType === 'skeletal'
+        };
+    }
+    
     const config = {
         project_name: currentProject,
         mesh_type: currentMeshType,
@@ -1093,16 +1121,7 @@ async function saveConfig() {
             orientation: document.getElementById('rigOrientation').value,
             enabled: currentMeshType === 'skeletal'
         },
-        hy_motion_prompt: {
-            category: document.getElementById('promptCategory').value,
-            preset: document.getElementById('promptSelect').value,
-            motion: document.getElementById('motionField').value,
-            style: document.getElementById('styleField').value,
-            constraints: document.getElementById('constraintsField').value,
-            camera: document.getElementById('cameraField').value,
-            output: document.getElementById('outputField').value,
-            enabled: currentMeshType === 'skeletal'
-        },
+        hy_motion_prompt: animationConfig,
         sprite_generation: {
             enabled: document.getElementById('enableSprites')?.checked || false,
             frame_interval: parseInt(document.getElementById('spriteFrameInterval')?.value || 2),
@@ -1211,14 +1230,345 @@ function closePipelineModal() {
 // Motion Prompt Library Management
 // ===================================
 
+let selectedAnimations = new Set();
+
 async function loadPromptLibrary() {
     try {
         const response = await fetch('/pipeline/hy_motion_prompts/prompt_library.json');
         promptLibrary = await response.json();
         console.log('Prompt library loaded:', Object.keys(promptLibrary).length, 'categories');
+        
+        // Populate animation checkboxes
+        populateAnimationCheckboxes();
     } catch (error) {
         console.error('Failed to load prompt library:', error);
         showError('Failed to load prompt library');
+    }
+}
+
+function populateAnimationCheckboxes() {
+    const container = document.getElementById('animationCheckboxes');
+    if (!container || !promptLibrary) return;
+    
+    container.innerHTML = '';
+    
+    // Create checkbox groups for each category
+    Object.keys(promptLibrary).forEach(category => {
+        const categoryDiv = document.createElement('div');
+        categoryDiv.className = 'animation-category';
+        
+        // Category header with "Select All" checkbox
+        const header = document.createElement('div');
+        header.className = 'category-header';
+        header.innerHTML = `
+            <label class="category-label">
+                <input type="checkbox" 
+                       class="category-checkbox" 
+                       data-category="${category}"
+                       onchange="toggleCategory('${category}', this.checked)">
+                <strong>${category.charAt(0).toUpperCase() + category.slice(1)}</strong>
+            </label>
+            <span class="category-count" id="count-${category}">0/${Object.keys(promptLibrary[category]).length}</span>
+        `;
+        categoryDiv.appendChild(header);
+        
+        // Individual animation checkboxes
+        const animList = document.createElement('div');
+        animList.className = 'animation-list';
+        
+        Object.keys(promptLibrary[category]).forEach(animKey => {
+            const animLabel = document.createElement('label');
+            animLabel.className = 'animation-checkbox-label';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'animation-checkbox';
+            checkbox.dataset.category = category;
+            checkbox.dataset.animation = animKey;
+            checkbox.onchange = () => toggleAnimation(category, animKey, checkbox.checked);
+            
+            const labelText = document.createElement('span');
+            labelText.textContent = animKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            
+            animLabel.appendChild(checkbox);
+            animLabel.appendChild(labelText);
+            animList.appendChild(animLabel);
+        });
+        
+        categoryDiv.appendChild(animList);
+        container.appendChild(categoryDiv);
+    });
+}
+
+function toggleCategory(category, checked) {
+    const checkboxes = document.querySelectorAll(`input.animation-checkbox[data-category="${category}"]`);
+    checkboxes.forEach(cb => {
+        cb.checked = checked;
+        toggleAnimation(category, cb.dataset.animation, checked);
+    });
+}
+
+function toggleAnimation(category, animKey, checked) {
+    const key = `${category}:${animKey}`;
+    
+    if (checked) {
+        selectedAnimations.add(key);
+    } else {
+        selectedAnimations.delete(key);
+    }
+    
+    updateAnimationUI();
+}
+
+function updateAnimationUI() {
+    // Update total count
+    const count = selectedAnimations.size;
+    document.getElementById('selectedAnimCount').textContent = `${count} selected`;
+    
+    // Update category counts and checkboxes
+    Object.keys(promptLibrary).forEach(category => {
+        const categoryCheckboxes = document.querySelectorAll(`input.animation-checkbox[data-category="${category}"]`);
+        const checkedCount = Array.from(categoryCheckboxes).filter(cb => cb.checked).length;
+        const totalCount = categoryCheckboxes.length;
+        
+        // Update category count display
+        const countEl = document.getElementById(`count-${category}`);
+        if (countEl) {
+            countEl.textContent = `${checkedCount}/${totalCount}`;
+        }
+        
+        // Update category "Select All" checkbox state
+        const categoryCheckbox = document.querySelector(`input.category-checkbox[data-category="${category}"]`);
+        if (categoryCheckbox) {
+            categoryCheckbox.checked = checkedCount === totalCount;
+            categoryCheckbox.indeterminate = checkedCount > 0 && checkedCount < totalCount;
+        }
+    });
+    
+    // Show warning if many animations selected
+    const warningBox = document.getElementById('animationWarning');
+    const warningText = document.getElementById('warningText');
+    
+    if (count === 0) {
+        warningBox.style.display = 'none';
+    } else if (count > 10) {
+        warningBox.style.display = 'block';
+        warningBox.className = 'warning-box error';
+        warningText.textContent = `⚠️ Warning: ${count} animations will be generated. This may take several hours!`;
+    } else if (count > 5) {
+        warningBox.style.display = 'block';
+        warningBox.className = 'warning-box warning';
+        warningText.textContent = `${count} animations selected. Estimated time: ${count * 5}-${count * 10} minutes`;
+    } else if (count > 1) {
+        warningBox.style.display = 'block';
+        warningBox.className = 'warning-box info';
+        warningText.textContent = `${count} animations will be generated sequentially`;
+    }
+}
+
+function clearAllAnimations() {
+    selectedAnimations.clear();
+    document.querySelectorAll('.animation-checkbox, .category-checkbox').forEach(cb => cb.checked = false);
+    updateAnimationUI();
+}
+
+function toggleAnimationMode(mode) {
+    const libraryMode = document.getElementById('libraryMode');
+    const customMode = document.getElementById('customMode');
+    
+    if (mode === 'library') {
+        libraryMode.style.display = 'block';
+        customMode.style.display = 'none';
+    } else {
+        libraryMode.style.display = 'none';
+        customMode.style.display = 'block';
+    }
+}
+
+function getSelectedAnimations() {
+    const animations = [];
+    
+    selectedAnimations.forEach(key => {
+        const [category, animKey] = key.split(':');
+        if (promptLibrary[category] && promptLibrary[category][animKey]) {
+            const basePrompt = promptLibrary[category][animKey];
+            
+            // Apply project overrides if they exist
+            let prompt = { ...basePrompt };
+            if (projectAnimationOverrides && projectAnimationOverrides[key]) {
+                prompt = { ...prompt, ...projectAnimationOverrides[key] };
+            }
+            
+            animations.push({
+                category: category,
+                name: animKey,
+                ...prompt
+            });
+        }
+    });
+    
+    return animations;
+}
+
+// ===================================
+// Animation Prompt Editor
+// ===================================
+
+let projectAnimationOverrides = {};
+let editingAnimations = [];
+
+async function loadAnimationOverrides() {
+    if (!currentProject) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/projects/${currentProject}/animation_overrides`);
+        if (response.ok) {
+            const data = await response.json();
+            projectAnimationOverrides = data.overrides || {};
+            console.log('Loaded animation overrides:', Object.keys(projectAnimationOverrides).length);
+        }
+    } catch (error) {
+        console.log('No animation overrides found for project');
+        projectAnimationOverrides = {};
+    }
+}
+
+function openPromptEditor() {
+    const selected = getSelectedAnimations();
+    
+    if (selected.length === 0) {
+        showError('No animations selected. Select animations first.');
+        return;
+    }
+    
+    editingAnimations = selected;
+    const content = document.getElementById('promptEditorContent');
+    content.innerHTML = '';
+    
+    selected.forEach((anim, index) => {
+        const editorDiv = document.createElement('div');
+        editorDiv.className = 'prompt-editor-item';
+        editorDiv.innerHTML = `
+            <div class="prompt-editor-header">
+                <h4>${anim.category} / ${anim.name.replace(/_/g, ' ')}</h4>
+                <button class="btn-icon" onclick="resetPromptToDefault(${index})" title="Reset to library default">
+                    🔄
+                </button>
+            </div>
+            <div class="prompt-editor-fields">
+                <div class="form-group">
+                    <label>Motion</label>
+                    <textarea id="edit_motion_${index}" rows="3">${anim.motion || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Style</label>
+                    <textarea id="edit_style_${index}" rows="2">${anim.style || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Constraints</label>
+                    <textarea id="edit_constraints_${index}" rows="2">${anim.constraints || ''}</textarea>
+                </div>
+                <div class="form-group-row">
+                    <div class="form-group">
+                        <label>Camera</label>
+                        <input type="text" id="edit_camera_${index}" value="${anim.camera || 'Locked.'}">
+                    </div>
+                    <div class="form-group">
+                        <label>Output</label>
+                        <input type="text" id="edit_output_${index}" value="${anim.output || '30 frames, 30fps.'}">
+                    </div>
+                </div>
+            </div>
+        `;
+        content.appendChild(editorDiv);
+    });
+    
+    document.getElementById('promptEditorModal').style.display = 'flex';
+}
+
+function closePromptEditor() {
+    document.getElementById('promptEditorModal').style.display = 'none';
+    editingAnimations = [];
+}
+
+function resetPromptToDefault(index) {
+    const anim = editingAnimations[index];
+    const key = `${anim.category}:${anim.name}`;
+    const original = promptLibrary[anim.category][anim.name];
+    
+    document.getElementById(`edit_motion_${index}`).value = original.motion || '';
+    document.getElementById(`edit_style_${index}`).value = original.style || '';
+    document.getElementById(`edit_constraints_${index}`).value = original.constraints || '';
+    document.getElementById(`edit_camera_${index}`).value = original.camera || 'Locked.';
+    document.getElementById(`edit_output_${index}`).value = original.output || '30 frames, 30fps.';
+    
+    showSuccess(`Reset ${anim.name} to library default`);
+}
+
+async function savePromptOverrides(scope) {
+    const overrides = {};
+    
+    editingAnimations.forEach((anim, index) => {
+        const key = `${anim.category}:${anim.name}`;
+        overrides[key] = {
+            motion: document.getElementById(`edit_motion_${index}`).value,
+            style: document.getElementById(`edit_style_${index}`).value,
+            constraints: document.getElementById(`edit_constraints_${index}`).value,
+            camera: document.getElementById(`edit_camera_${index}`).value,
+            output: document.getElementById(`edit_output_${index}`).value
+        };
+    });
+    
+    if (scope === 'project') {
+        // Save to project-specific overrides
+        try {
+            const response = await fetch(`${API_BASE}/api/projects/${currentProject}/animation_overrides`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ overrides: overrides })
+            });
+            
+            if (response.ok) {
+                projectAnimationOverrides = { ...projectAnimationOverrides, ...overrides };
+                showSuccess(`Saved ${Object.keys(overrides).length} animation overrides for project`);
+                closePromptEditor();
+            } else {
+                showError('Failed to save project overrides');
+            }
+        } catch (error) {
+            showError('Error saving overrides: ' + error.message);
+        }
+    } else if (scope === 'global') {
+        // Save to global library (requires confirmation)
+        const confirm_msg = `Save ${Object.keys(overrides).length} animations as global defaults?\\n\\n` +
+                          `This will update the prompt library for all projects.`;
+        
+        if (!confirm(confirm_msg)) return;
+        
+        try {
+            const response = await fetch(`${API_BASE}/api/animation_library/update`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ updates: overrides })
+            });
+            
+            if (response.ok) {
+                // Update local library
+                Object.keys(overrides).forEach(key => {
+                    const [category, name] = key.split(':');
+                    if (promptLibrary[category] && promptLibrary[category][name]) {
+                        promptLibrary[category][name] = { ...promptLibrary[category][name], ...overrides[key] };
+                    }
+                });
+                
+                showSuccess(`Updated ${Object.keys(overrides).length} animations in library`);
+                closePromptEditor();
+            } else {
+                showError('Failed to update global library');
+            }
+        } catch (error) {
+            showError('Error updating library: ' + error.message);
+        }
     }
 }
 
@@ -1334,6 +1684,35 @@ async function runPipeline() {
     if (!currentProject) {
         showError('Please select a project first');
         return;
+    }
+    
+    // Validation: Check if animations are selected for skeletal mesh
+    if (currentMeshType === 'skeletal') {
+        const animMode = document.getElementById('animMode').value;
+        
+        if (animMode === 'library') {
+            const selectedAnims = getSelectedAnimations();
+            
+            if (selectedAnims.length === 0) {
+                const proceed = confirm('No animations selected. The pipeline will skip animation generation. Continue?');
+                if (!proceed) return;
+            } else if (selectedAnims.length > 10) {
+                const proceed = confirm(
+                    `⚠️ WARNING: You have selected ${selectedAnims.length} animations.\n\n` +
+                    `This will take a VERY long time (estimated ${selectedAnims.length * 5}-${selectedAnims.length * 10} minutes).\n\n` +
+                    `Each animation will be generated sequentially.\n\n` +
+                    `Continue with ${selectedAnims.length} animations?`
+                );
+                if (!proceed) return;
+            } else if (selectedAnims.length > 1) {
+                const proceed = confirm(
+                    `${selectedAnims.length} animations will be generated sequentially.\n` +
+                    `Estimated time: ${selectedAnims.length * 5}-${selectedAnims.length * 10} minutes.\n\n` +
+                    `Continue?`
+                );
+                if (!proceed) return;
+            }
+        }
     }
     
     // Save config before running
