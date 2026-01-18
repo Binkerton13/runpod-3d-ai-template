@@ -8,6 +8,9 @@ on:
       - 'Dockerfile'
       - 'file_browser.py'
       - 'supervisord.conf'
+      - 'start.sh'
+      - 'pipeline/**'
+      - 'config/**'
       - '.github/workflows/**'
       - 'scripts/**'
   push:
@@ -20,6 +23,9 @@ on:
       - 'Dockerfile'
       - 'file_browser.py'
       - 'supervisord.conf'
+      - 'start.sh'
+      - 'pipeline/**'
+      - 'config/**'
       - '.github/workflows/**'
       - 'scripts/**'
   workflow_dispatch: {}
