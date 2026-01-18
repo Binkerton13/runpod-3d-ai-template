@@ -49,6 +49,14 @@
                         </div>
                         <div class="file-info" id="meshInfo" style="display: none"></div>
                     </div>
+                    <div class="form-group" id="meshTypeGroup" style="display: none; margin-top: 1rem;">
+                        <label for="meshTypeSelect">Mesh Type</label>
+                        <select id="meshTypeSelect" onchange="updateMeshType(this.value)">
+                            <option value="skeletal">Skeletal (Rigging + Animation)</option>
+                            <option value="static">Static (Texture Only)</option>
+                        </select>
+                        <small>Static meshes skip rigging and animation steps</small>
+                    </div>
                 </div>
 
                 <!-- UDIM Tiles Upload -->
@@ -100,6 +108,24 @@
                         </div>
                         <small style="color: var(--text-secondary); margin-top: 0.5rem; display: block;">Tip: Use OpenPose, DWPose, or depth maps for best results</small>
                         <div id="poseRefList" class="file-list"></div>
+                    </div>
+                </div>
+
+                <!-- ComfyUI Models Management -->
+                <div class="upload-section">
+                    <h3>🤖 ComfyUI Models</h3>
+                    <button class="btn btn-small" onclick="toggleModelManager()" style="width: 100%; margin-bottom: 0.5rem;">
+                        📦 Manage Models
+                    </button>
+                    <div id="modelValidation" class="model-validation" style="display: none;">
+                        <div class="validation-item" id="textureValidation">
+                            <span class="validation-icon">⏳</span>
+                            <span>Texture Workflow</span>
+                        </div>
+                        <div class="validation-item" id="spriteValidation">
+                            <span class="validation-icon">⏳</span>
+                            <span>Sprite Workflow</span>
+                        </div>
                     </div>
                 </div>
 
@@ -264,6 +290,68 @@
                     </div>
                 </div>
 
+                <!-- Sprite Generation -->
+                <div class="config-section" id="spriteSection">
+                    <h3>2D Sprite Generation</h3>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="enableSprites" onchange="toggleSpriteOptions(this.checked)">
+                            Enable sprite generation from animation
+                        </label>
+                    </div>
+                    
+                    <div id="spriteOptions" style="display: none;">
+                        <div class="form-group">
+                            <label for="spriteFrameInterval">Frame Interval</label>
+                            <select id="spriteFrameInterval">
+                                <option value="1">Every Frame (30fps)</option>
+                                <option value="2" selected>Every 2nd Frame (15fps)</option>
+                                <option value="3">Every 3rd Frame (10fps)</option>
+                                <option value="4">Every 4th Frame (7.5fps)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="spriteAngles">Camera Angles</label>
+                            <select id="spriteAngles" multiple size="4">
+                                <option value="front" selected>Front (0°)</option>
+                                <option value="side" selected>Side (90°)</option>
+                                <option value="back">Back (180°)</option>
+                                <option value="diagonal" selected>Diagonal (45°)</option>
+                            </select>
+                            <small>Hold Ctrl/Cmd to select multiple</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="spriteCharacterPrompt">Character Overlay Prompt</label>
+                            <textarea id="spriteCharacterPrompt" rows="3" placeholder="female character, green hair, ponytail, fantasy armor"></textarea>
+                            <small>3D model used as reference + these modifications</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="spriteNegativePrompt">Negative Prompt</label>
+                            <textarea id="spriteNegativePrompt" rows="2" placeholder="low quality, blurry, distorted"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="spriteResolution">Sprite Resolution</label>
+                            <select id="spriteResolution">
+                                <option value="512">512x512</option>
+                                <option value="768" selected>768x768</option>
+                                <option value="1024">1024x1024</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="spriteSpritesheet" checked>
+                                Generate spritesheets (combined frames)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- References -->
                 <div class="config-section">
                     <h3>References</h3>
@@ -277,6 +365,45 @@
                 </div>
 
                 <!-- Export Settings -->
+                <div class="config-section">
+                    <h3>Export</h3>
+                    <div class="form-group">
+                        <label for="exportFormat">Format</label>
+                        <select id="exportFormat">
+                            <option value="fbx">FBX</option>
+                            <option value="obj">OBJ</option>
+                            <option value="glb">GLB</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="exportPackage" checked>
+                            Create package archive
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Pipeline Execution -->
+                <div class="config-section">
+                    <h3>Pipeline Execution</h3>
+                    <button class="btn btn-primary btn-large" onclick="runPipeline()" id="runPipelineBtn">
+                        ▶️ Run Pipeline
+                    </button>
+                    <button class="btn btn-small" onclick="refreshPipelineStatus()" style="margin-top: 0.5rem;">
+                        🔄 Refresh Status
+                    </button>
+                    
+                    <div id="pipelineStatus" class="pipeline-status" style="margin-top: 1rem; display: none;">
+                        <h4>Pipeline Status</h4>
+                        <div id="pipelineStages"></div>
+                        <div class="pipeline-log" id="pipelineLog" style="display: none;">
+                            <h5>Recent Log <button class="btn-link" onclick="togglePipelineLog()">Toggle</button></h5>
+                            <pre id="logContent"></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save Configuration -->
                 <div class="config-section">
                     <h3>Export Formats</h3>
                     <div class="checkbox-group">
@@ -329,6 +456,115 @@
             <div id="pipelineSteps"></div>
             <div class="modal-buttons">
                 <button class="btn btn-secondary" onclick="closePipelineModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Manager Modal -->
+    <div id="modelManagerModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>🤖 ComfyUI Model Manager</h2>
+                <button class="btn btn-secondary" onclick="closeModelManager()">✕</button>
+            </div>
+            
+            <div class="model-manager-tabs">
+                <button class="tab-btn active" onclick="switchModelTab('browse')">📋 Browse</button>
+                <button class="tab-btn" onclick="switchModelTab('upload')">⬆️ Upload</button>
+                <button class="tab-btn" onclick="switchModelTab('select')">⚙️ Select Models</button>
+            </div>
+            
+            <!-- Browse Tab -->
+            <div id="browseTab" class="tab-content active">
+                <div class="model-type-selector">
+                    <label>Model Type:</label>
+                    <select id="browseModelType" onchange="loadModelsForType(this.value)">
+                        <option value="checkpoints">Checkpoints</option>
+                        <option value="loras">LoRAs</option>
+                        <option value="controlnet">ControlNet</option>
+                        <option value="vae">VAE</option>
+                        <option value="ipadapter">IP-Adapter</option>
+                        <option value="embeddings">Embeddings</option>
+                        <option value="upscale_models">Upscale Models</option>
+                        <option value="clip_vision">CLIP Vision</option>
+                    </select>
+                    <button class="btn btn-small" onclick="refreshModelList()">🔄 Refresh</button>
+                </div>
+                
+                <div id="modelList" class="model-list">
+                    <div class="loading">Loading models...</div>
+                </div>
+            </div>
+            
+            <!-- Upload Tab -->
+            <div id="uploadTab" class="tab-content">
+                <div class="upload-form">
+                    <div class="form-group">
+                        <label for="uploadModelType">Model Type</label>
+                        <select id="uploadModelType">
+                            <option value="checkpoints">Checkpoint (.safetensors, .ckpt)</option>
+                            <option value="loras">LoRA (.safetensors, .ckpt)</option>
+                            <option value="controlnet">ControlNet (.safetensors, .pth)</option>
+                            <option value="vae">VAE (.safetensors, .pt)</option>
+                            <option value="ipadapter">IP-Adapter (.safetensors, .bin)</option>
+                            <option value="embeddings">Embedding (.safetensors, .pt)</option>
+                            <option value="upscale_models">Upscale Model (.pth)</option>
+                            <option value="clip_vision">CLIP Vision (.safetensors)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="drop-zone" id="modelDropZone" 
+                         ondrop="handleModelDrop(event)" 
+                         ondragover="handleDragOver(event)"
+                         ondragleave="handleDragLeave(event)">
+                        <div class="drop-zone-content">
+                            <span class="drop-icon">📦</span>
+                            <p>Drop model file here</p>
+                            <input type="file" id="modelFileInput" accept=".safetensors,.ckpt,.pt,.pth,.bin" onchange="handleModelFileSelect(event)" style="display: none">
+                            <button class="btn btn-small" onclick="document.getElementById('modelFileInput').click()">Browse</button>
+                        </div>
+                    </div>
+                    
+                    <div id="modelUploadProgress" style="display: none; margin-top: 1rem;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="modelProgressFill"></div>
+                        </div>
+                        <p id="modelProgressText">Uploading...</p>
+                    </div>
+                    
+                    <div class="model-info-panel">
+                        <h4>📝 Model Guidelines</h4>
+                        <ul>
+                            <li><strong>Checkpoints:</strong> Base models (SDXL, SD 1.5, etc.)</li>
+                            <li><strong>LoRAs:</strong> Style and character refinements</li>
+                            <li><strong>ControlNet:</strong> Pose, depth, and structural control</li>
+                            <li><strong>IP-Adapter:</strong> Image-based style transfer</li>
+                        </ul>
+                        <p><small>⚠️ Large files may take several minutes to upload</small></p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Select Models Tab -->
+            <div id="selectTab" class="tab-content">
+                <div class="workflow-selector">
+                    <label>Workflow:</label>
+                    <select id="workflowSelect" onchange="loadWorkflowModels(this.value)">
+                        <option value="texture_workflow">Texture Generation</option>
+                        <option value="sprite_generation_workflow">Sprite Generation</option>
+                    </select>
+                </div>
+                
+                <div id="workflowValidation" class="workflow-validation"></div>
+                
+                <div id="modelSelectors" class="model-selectors">
+                    <!-- Dynamically populated -->
+                </div>
+                
+                <div class="modal-buttons">
+                    <button class="btn btn-secondary" onclick="autoSelectWorkflowModels()">🔄 Auto-Select</button>
+                    <button class="btn btn-primary" onclick="saveWorkflowModelSelections()">💾 Save Selections</button>
+                </div>
             </div>
         </div>
     </div>

@@ -1,0 +1,220 @@
+{
+  "last_node_id": 20,
+  "last_link_id": 25,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [50, 50],
+      "inputs": {
+        "image": "render_frame"
+      },
+      "comment": "Load 3D rendered frame as reference"
+    },
+    {
+      "id": 2,
+      "type": "CheckpointLoaderSimple",
+      "pos": [50, 250],
+      "inputs": {
+        "ckpt_name": "sdxl_base_1.0.safetensors"
+      }
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "pos": [350, 50],
+      "inputs": {
+        "text": "character_prompt"
+      },
+      "comment": "Character modifications overlay prompt"
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "pos": [350, 200],
+      "inputs": {
+        "text": "negative_prompt"
+      }
+    },
+    {
+      "id": 15,
+      "type": "LoadImage",
+      "pos": [50, 450],
+      "inputs": {
+        "image": "style_reference",
+        "optional": true
+      },
+      "comment": "Optional character style reference"
+    },
+    {
+      "id": 16,
+      "type": "IPAdapterModelLoader",
+      "pos": [350, 450],
+      "inputs": {
+        "ipadapter_file": "ip-adapter_sdxl.safetensors"
+      }
+    },
+    {
+      "id": 17,
+      "type": "IPAdapterApply",
+      "pos": [650, 450],
+      "inputs": {
+        "model": ["2", 0],
+        "ipadapter": ["16", 0],
+        "image": ["15", 0],
+        "weight": 0.3,
+        "weight_type": "linear"
+      },
+      "comment": "Apply style reference if provided (lower weight for subtlety)"
+    },
+    {
+      "id": 18,
+      "type": "ControlNetLoader",
+      "pos": [350, 650],
+      "inputs": {
+        "control_net_name": "controlnet_openpose_sdxl.safetensors"
+      },
+      "comment": "Use OpenPose ControlNet for pose guidance"
+    },
+    {
+      "id": 19,
+      "type": "OpenPosePreprocessor",
+      "pos": [350, 800],
+      "inputs": {
+        "image": ["1", 0]
+      },
+      "comment": "Extract pose from 3D render"
+    },
+    {
+      "id": 9,
+      "type": "ControlNetApply",
+      "pos": [650, 650],
+      "inputs": {
+        "control_net": ["18", 0],
+        "conditioning": ["3", 0],
+        "image": ["19", 0],
+        "strength": 1.0
+      },
+      "comment": "Apply pose control from 3D render"
+    },
+    {
+      "id": 20,
+      "type": "ControlNetLoader",
+      "pos": [650, 950],
+      "inputs": {
+        "control_net_name": "controlnet_depth_sdxl.safetensors"
+      },
+      "comment": "Additional depth control for better consistency"
+    },
+    {
+      "id": 21,
+      "type": "DepthAnythingPreprocessor",
+      "pos": [650, 1100],
+      "inputs": {
+        "image": ["1", 0]
+      },
+      "comment": "Extract depth from 3D render"
+    },
+    {
+      "id": 22,
+      "type": "ControlNetApply",
+      "pos": [900, 950],
+      "inputs": {
+        "control_net": ["20", 0],
+        "conditioning": ["9", 0],
+        "image": ["21", 0],
+        "strength": 0.7
+      },
+      "comment": "Apply depth control"
+    },
+    {
+      "id": 5,
+      "type": "KSampler",
+      "pos": [1150, 100],
+      "inputs": {
+        "model": ["17", 0],
+        "positive": ["22", 0],
+        "negative": ["4", 0],
+        "latent_image": ["10", 0],
+        "seed": "seed",
+        "steps": 30,
+        "cfg": 7.5,
+        "sampler_name": "dpmpp_2m",
+        "scheduler": "karras",
+        "denoise": 0.85
+      },
+      "comment": "High denoise for character generation"
+    },
+    {
+      "id": 10,
+      "type": "EmptyLatentImage",
+      "pos": [900, 100],
+      "inputs": {
+        "width": "resolution",
+        "height": "resolution",
+        "batch_size": 1
+      }
+    },
+    {
+      "id": 11,
+      "type": "VAEDecode",
+      "pos": [1400, 100],
+      "inputs": {
+        "samples": ["5", 0],
+        "vae": ["2", 2]
+      }
+    },
+    {
+      "id": 12,
+      "type": "ImageSharpen",
+      "pos": [1650, 100],
+      "inputs": {
+        "image": ["11", 0],
+        "amount": 0.2
+      }
+    },
+    {
+      "id": 13,
+      "type": "RemoveBackground",
+      "pos": [1900, 100],
+      "inputs": {
+        "image": ["12", 0]
+      },
+      "comment": "Remove background for sprite use"
+    },
+    {
+      "id": 14,
+      "type": "SaveImage",
+      "pos": [2150, 100],
+      "inputs": {
+        "filename_prefix": "sprite_frame",
+        "image": ["13", 0]
+      }
+    }
+  ],
+  "links": [
+    [1, 0, 17, 0],
+    [2, 0, 5, 0],
+    [3, 0, 3, 1],
+    [4, 0, 4, 1],
+    [5, 0, 9, 1],
+    [6, 0, 22, 1],
+    [7, 0, 5, 1],
+    [8, 0, 5, 2],
+    [9, 0, 10, 0],
+    [10, 0, 11, 0],
+    [11, 0, 12, 0],
+    [12, 0, 13, 0],
+    [13, 0, 14, 0],
+    [14, 0, 1, 0],
+    [15, 0, 15, 0],
+    [16, 0, 16, 0],
+    [17, 0, 18, 0],
+    [18, 0, 19, 0],
+    [19, 0, 20, 0],
+    [20, 0, 21, 0],
+    [21, 0, 9, 0],
+    [22, 0, 22, 0]
+  ],
+  "workflow_description": "Generates 2D character sprites from 3D animation frames. Uses the 3D render as pose and depth reference, applies character style modifications via prompt and optional style reference image, and outputs transparent PNG sprites suitable for sprite sheets."
+}

@@ -20,6 +20,7 @@ let animationMixer = null;
 let animationClip = null;
 let isAnimationPlaying = false;
 let animationClock = new THREE.Clock();
+let currentMeshType = 'skeletal'; // 'skeletal' or 'static'
 
 // ===================================
 // Initialization
@@ -775,6 +776,57 @@ function formatTime(seconds) {
 }
 
 // ===================================
+// Mesh Type & Pipeline Control
+// ===================================
+
+function updateMeshType(type) {
+    currentMeshType = type;
+    
+    // Show/hide rigging and animation sections
+    const rigSection = document.querySelector('.config-section h3');
+    const animSection = document.getElementById('spriteSection');
+    
+    const sections = document.querySelectorAll('.config-section');
+    sections.forEach(section => {
+        const heading = section.querySelector('h3');
+        if (heading) {
+            const text = heading.textContent.toLowerCase();
+            if (type === 'static') {
+                if (text.includes('rigging') || text.includes('animation')) {
+                    section.style.opacity = '0.5';
+                    section.style.pointerEvents = 'none';
+                    const inputs = section.querySelectorAll('input, select, textarea, button');
+                    inputs.forEach(input => input.disabled = true);
+                }
+            } else {
+                section.style.opacity = '1';
+                section.style.pointerEvents = 'auto';
+                const inputs = section.querySelectorAll('input, select, textarea, button');
+                inputs.forEach(input => input.disabled = false);
+            }
+        }
+    });
+    
+    // Sprite generation only available for skeletal meshes
+    if (animSection) {
+        if (type === 'static') {
+            animSection.style.display = 'none';
+        } else {
+            animSection.style.display = 'block';
+        }
+    }
+    
+    showSuccess(`Mesh type set to: ${type}`);
+}
+
+function toggleSpriteOptions(enabled) {
+    const spriteOptions = document.getElementById('spriteOptions');
+    if (spriteOptions) {
+        spriteOptions.style.display = enabled ? 'block' : 'none';
+    }
+}
+
+// ===================================
 // File Upload Handling
 // ===================================
 
@@ -817,6 +869,11 @@ function processFiles(files, type) {
                 loadModelIntoViewer(files[0]);
                 if (viewMode !== '3d') {
                     toggleViewMode();
+                }
+                // Show mesh type selector
+                const meshTypeGroup = document.getElementById('meshTypeGroup');
+                if (meshTypeGroup) {
+                    meshTypeGroup.style.display = 'block';
                 }
             }
             break;
@@ -1023,6 +1080,7 @@ async function saveConfig() {
     
     const config = {
         project_name: currentProject,
+        mesh_type: currentMeshType,
         udim_tiles: {
             "1001": {
                 prompt: document.getElementById('texturePrompt').value,
@@ -1032,7 +1090,8 @@ async function saveConfig() {
         },
         unirig: {
             scale: parseFloat(document.getElementById('rigScale').value),
-            orientation: document.getElementById('rigOrientation').value
+            orientation: document.getElementById('rigOrientation').value,
+            enabled: currentMeshType === 'skeletal'
         },
         hy_motion_prompt: {
             category: document.getElementById('promptCategory').value,
@@ -1041,7 +1100,17 @@ async function saveConfig() {
             style: document.getElementById('styleField').value,
             constraints: document.getElementById('constraintsField').value,
             camera: document.getElementById('cameraField').value,
-            output: document.getElementById('outputField').value
+            output: document.getElementById('outputField').value,
+            enabled: currentMeshType === 'skeletal'
+        },
+        sprite_generation: {
+            enabled: document.getElementById('enableSprites')?.checked || false,
+            frame_interval: parseInt(document.getElementById('spriteFrameInterval')?.value || 2),
+            angles: Array.from(document.getElementById('spriteAngles')?.selectedOptions || []).map(opt => opt.value),
+            character_prompt: document.getElementById('spriteCharacterPrompt')?.value || '',
+            negative_prompt: document.getElementById('spriteNegativePrompt')?.value || '',
+            resolution: parseInt(document.getElementById('spriteResolution')?.value || 768),
+            generate_spritesheet: document.getElementById('spriteSpritesheet')?.checked || true
         },
         export_formats: {
             fbx: document.getElementById('exportFBX').checked,
@@ -1257,3 +1326,587 @@ function removeFile(filename, type) {
     // Implementation for file removal
     console.log('Remove file:', filename, type);
 }
+// ===================================
+// Pipeline Execution
+// ===================================
+
+async function runPipeline() {
+    if (!currentProject) {
+        showError('Please select a project first');
+        return;
+    }
+    
+    // Save config before running
+    await saveConfig();
+    
+    const btn = document.getElementById('runPipelineBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Starting Pipeline...';
+    
+    try {
+        const response = await fetch(`${API_BASE}/pipeline/run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                project_name: currentProject
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showSuccess('Pipeline started successfully');
+            btn.textContent = '⏳ Pipeline Running...';
+            
+            // Show status section
+            document.getElementById('pipelineStatus').style.display = 'block';
+            
+            // Start polling for status updates
+            startPipelineStatusPolling();
+        } else {
+            showError(data.error || 'Failed to start pipeline');
+            btn.disabled = false;
+            btn.textContent = '▶️ Run Pipeline';
+        }
+    } catch (error) {
+        showError('Error starting pipeline: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = '▶️ Run Pipeline';
+    }
+}
+
+let pipelineStatusInterval = null;
+
+function startPipelineStatusPolling() {
+    // Clear existing interval
+    if (pipelineStatusInterval) {
+        clearInterval(pipelineStatusInterval);
+    }
+    
+    // Poll every 3 seconds
+    pipelineStatusInterval = setInterval(refreshPipelineStatus, 3000);
+    
+    // Initial fetch
+    refreshPipelineStatus();
+}
+
+function stopPipelineStatusPolling() {
+    if (pipelineStatusInterval) {
+        clearInterval(pipelineStatusInterval);
+        pipelineStatusInterval = null;
+    }
+}
+
+async function refreshPipelineStatus() {
+    if (!currentProject) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/pipeline/status/${currentProject}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            updatePipelineStatusDisplay(data);
+            
+            // Check if pipeline is complete
+            const allComplete = Object.values(data.stages).every(stage => 
+                !stage.required || stage.completed
+            );
+            
+            if (allComplete) {
+                stopPipelineStatusPolling();
+                const btn = document.getElementById('runPipelineBtn');
+                btn.disabled = false;
+                btn.textContent = '✓ Pipeline Complete';
+                setTimeout(() => {
+                    btn.textContent = '▶️ Run Pipeline';
+                }, 3000);
+                
+                // Load log
+                loadPipelineLog();
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching pipeline status:', error);
+    }
+}
+
+function updatePipelineStatusDisplay(status) {
+    const stagesDiv = document.getElementById('pipelineStages');
+    if (!stagesDiv) return;
+    
+    let html = '<div class="stage-list">';
+    
+    const stageOrder = ['textures', 'rigging', 'animation', 'export', 'sprites'];
+    
+    for (const stageName of stageOrder) {
+        const stage = status.stages[stageName];
+        if (!stage) continue;
+        
+        let icon = '⏳';
+        let statusClass = 'pending';
+        
+        if (stage.completed) {
+            icon = '✅';
+            statusClass = 'complete';
+        } else if (!stage.required) {
+            icon = '⊘';
+            statusClass = 'skipped';
+        }
+        
+        html += `
+            <div class="stage-item ${statusClass}">
+                <span class="stage-icon">${icon}</span>
+                <span class="stage-name">${stage.name}</span>
+                ${!stage.required ? '<small>(skipped)</small>' : ''}
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    stagesDiv.innerHTML = html;
+}
+
+async function loadPipelineLog() {
+    if (!currentProject) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/pipeline/log/${currentProject}?lines=50`);
+        const data = await response.json();
+        
+        if (response.ok && data.log) {
+            document.getElementById('logContent').textContent = data.log;
+            document.getElementById('pipelineLog').style.display = 'block';
+        }
+    } catch (error) {
+    }
+}
+
+// ===================================
+// Model Management
+// ===================================
+
+let currentModels = {};
+let currentWorkflow = 'texture_workflow';
+
+function toggleModelManager() {
+    document.getElementById('modelManagerModal').style.display = 'flex';
+    loadModelsForType('checkpoints');
+    validateModels();
+}
+
+function closeModelManager() {
+    document.getElementById('modelManagerModal').style.display = 'none';
+}
+
+function switchModelTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    const tabs = {
+        'browse': 'browseTab',
+        'upload': 'uploadTab',
+        'select': 'selectTab'
+    };
+    
+    document.getElementById(tabs[tabName]).classList.add('active');
+    
+    if (tabName === 'browse') {
+        loadModelsForType(document.getElementById('browseModelType').value);
+    } else if (tabName === 'select') {
+        loadWorkflowModels(document.getElementById('workflowSelect').value);
+    }
+}
+
+async function loadModelsForType(modelType) {
+    const modelList = document.getElementById('modelList');
+    modelList.innerHTML = '<div class="loading">Loading models...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/models/list?type=${modelType}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            displayModelList(data.models, modelType);
+        } else {
+            modelList.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+        }
+    } catch (error) {
+        modelList.innerHTML = `<div class="error">Error loading models: ${error.message}</div>`;
+    }
+}
+
+function displayModelList(models, modelType) {
+    const modelList = document.getElementById('modelList');
+    
+    if (models.length === 0) {
+        modelList.innerHTML = `
+            <div class="empty-state">
+                <p>📦 No ${modelType} models found</p>
+                <p><small>Upload models in the Upload tab</small></p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="model-grid">';
+    
+    models.forEach(model => {
+        html += `
+            <div class="model-card">
+                <div class="model-card-header">
+                    <span class="model-icon">📦</span>
+                    <span class="model-name" title="${model.name}">${model.name}</span>
+                </div>
+                <div class="model-card-body">
+                    <div class="model-detail">
+                        <span class="label">Size:</span>
+                        <span class="value">${model.size_mb} MB</span>
+                    </div>
+                    <div class="model-detail">
+                        <span class="label">Modified:</span>
+                        <span class="value">${new Date(model.modified * 1000).toLocaleDateString()}</span>
+                    </div>
+                </div>
+                <div class="model-card-actions">
+                    <button class="btn btn-small" onclick="downloadModel('${modelType}', '${model.name}')">
+                        ⬇️ Download
+                    </button>
+                    <button class="btn btn-small btn-danger" onclick="deleteModel('${modelType}', '${model.name}')">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    modelList.innerHTML = html;
+}
+
+function refreshModelList() {
+    const modelType = document.getElementById('browseModelType').value;
+    loadModelsForType(modelType);
+}
+
+async function handleModelFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+        await uploadModelFile(file);
+    }
+}
+
+async function handleModelDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const dropZone = event.currentTarget;
+    dropZone.classList.remove('drag-over');
+    
+    const file = event.dataTransfer.files[0];
+    if (file) {
+        await uploadModelFile(file);
+    }
+}
+
+async function uploadModelFile(file) {
+    const modelType = document.getElementById('uploadModelType').value;
+    const progressDiv = document.getElementById('modelUploadProgress');
+    const progressFill = document.getElementById('modelProgressFill');
+    const progressText = document.getElementById('modelProgressText');
+    
+    progressDiv.style.display = 'block';
+    progressText.textContent = `Uploading ${file.name}...`;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', modelType);
+    
+    try {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const percent = (e.loaded / e.total) * 100;
+                progressFill.style.width = percent + '%';
+                progressText.textContent = `Uploading ${file.name}... ${Math.round(percent)}%`;
+            }
+        });
+        
+        xhr.addEventListener('load', async () => {
+            if (xhr.status === 200) {
+                const data = JSON.parse(xhr.responseText);
+                showSuccess(`Model uploaded: ${file.name}`);
+                progressDiv.style.display = 'none';
+                
+                // Clear file input
+                document.getElementById('modelFileInput').value = '';
+                
+                // Refresh model list if on browse tab
+                if (document.getElementById('browseTab').classList.contains('active')) {
+                    await loadModelsForType(modelType);
+                }
+                
+                // Refresh validation
+                await validateModels();
+            } else {
+                const data = JSON.parse(xhr.responseText);
+                showError(data.error || 'Upload failed');
+                progressDiv.style.display = 'none';
+            }
+        });
+        
+        xhr.addEventListener('error', () => {
+            showError('Upload failed');
+            progressDiv.style.display = 'none';
+        });
+        
+        xhr.open('POST', `${API_BASE}/api/models/upload`);
+        xhr.send(formData);
+        
+    } catch (error) {
+        showError('Error uploading model: ' + error.message);
+        progressDiv.style.display = 'none';
+    }
+}
+
+async function deleteModel(modelType, filename) {
+    if (!confirm(`Delete ${filename}?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/models/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: modelType,
+                filename: filename
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showSuccess(data.message);
+            await loadModelsForType(modelType);
+            await validateModels();
+        } else {
+            showError(data.error || 'Delete failed');
+        }
+    } catch (error) {
+        showError('Error deleting model: ' + error.message);
+    }
+}
+
+function downloadModel(modelType, filename) {
+    window.open(`${API_BASE}/api/models/download/${modelType}/${filename}`, '_blank');
+}
+
+async function loadWorkflowModels(workflowName) {
+    currentWorkflow = workflowName;
+    
+    try {
+        // Validate workflow
+        const validationResponse = await fetch(`${API_BASE}/api/models/validate/${workflowName}`);
+        const validation = await validationResponse.json();
+        
+        displayWorkflowValidation(validation);
+        
+        // Get current selections
+        const selectionsResponse = await fetch(`${API_BASE}/api/models/selected/${workflowName}`);
+        const selectionsData = await selectionsResponse.json();
+        
+        // Load all models
+        const modelsResponse = await fetch(`${API_BASE}/api/models/list`);
+        const modelsData = await modelsResponse.json();
+        
+        currentModels = modelsData.models;
+        
+        displayModelSelectors(workflowName, selectionsData.selected, validation);
+        
+    } catch (error) {
+        showError('Error loading workflow models: ' + error.message);
+    }
+}
+
+function displayWorkflowValidation(validation) {
+    const validationDiv = document.getElementById('workflowValidation');
+    
+    if (validation.valid) {
+        validationDiv.innerHTML = `
+            <div class="validation-success">
+                ✅ ${validation.message}
+            </div>
+        `;
+    } else {
+        let html = `
+            <div class="validation-error">
+                ⚠️ ${validation.message}
+                <ul>
+        `;
+        
+        validation.missing.forEach(missing => {
+            html += `<li>${missing.description}</li>`;
+        });
+        
+        html += `
+                </ul>
+                <p><small>Upload required models in the Upload tab or auto-select available models</small></p>
+            </div>
+        `;
+        
+        validationDiv.innerHTML = html;
+    }
+}
+
+function displayModelSelectors(workflowName, selectedModels, validation) {
+    const selectorsDiv = document.getElementById('modelSelectors');
+    
+    const requirements = {
+        'texture_workflow': {
+            'checkpoints': 'Base Model (SDXL)',
+            'ipadapter': 'IP-Adapter'
+        },
+        'sprite_generation_workflow': {
+            'checkpoints': 'Base Model (SDXL)',
+            'controlnet': 'ControlNet (OpenPose/Depth)',
+            'ipadapter': 'IP-Adapter'
+        }
+    };
+    
+    const workflowReqs = requirements[workflowName] || {};
+    let html = '';
+    
+    for (const [modelType, label] of Object.entries(workflowReqs)) {
+        const typeModels = currentModels[modelType] || [];
+        const selectedModel = selectedModels[modelType] || '';
+        
+        html += `
+            <div class="form-group">
+                <label for="select_${modelType}">${label}</label>
+                <select id="select_${modelType}" class="model-selector">
+                    <option value="">-- Select ${modelType} --</option>
+        `;
+        
+        typeModels.forEach(model => {
+            const selected = model.name === selectedModel ? 'selected' : '';
+            html += `<option value="${model.name}" ${selected}>${model.name} (${model.size_mb}MB)</option>`;
+        });
+        
+        html += `
+                </select>
+                ${typeModels.length === 0 ? '<small class="error">⚠️ No models available - upload in Upload tab</small>' : ''}
+            </div>
+        `;
+    }
+    
+    selectorsDiv.innerHTML = html;
+}
+
+async function autoSelectWorkflowModels() {
+    const workflowName = document.getElementById('workflowSelect').value;
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/models/auto-select/${workflowName}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            showSuccess('Models auto-selected');
+            
+            // Update selectors
+            for (const [modelType, modelName] of Object.entries(data.selected)) {
+                const selector = document.getElementById(`select_${modelType}`);
+                if (selector) {
+                    selector.value = modelName;
+                }
+            }
+        } else {
+            showError(data.error || 'Auto-select failed');
+        }
+    } catch (error) {
+        showError('Error auto-selecting models: ' + error.message);
+    }
+}
+
+async function saveWorkflowModelSelections() {
+    const workflowName = document.getElementById('workflowSelect').value;
+    const selections = {};
+    
+    // Gather selections from dropdowns
+    document.querySelectorAll('.model-selector').forEach(select => {
+        const modelType = select.id.replace('select_', '');
+        const value = select.value;
+        if (value) {
+            selections[modelType] = value;
+        }
+    });
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/models/selected/${workflowName}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ selections })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showSuccess('Model selections saved');
+            await validateModels();
+        } else {
+            showError(data.error || 'Save failed');
+        }
+    } catch (error) {
+        showError('Error saving selections: ' + error.message);
+    }
+}
+
+async function validateModels() {
+    const workflows = ['texture_workflow', 'sprite_generation_workflow'];
+    const validationDiv = document.getElementById('modelValidation');
+    
+    if (!validationDiv) return;
+    
+    validationDiv.style.display = 'block';
+    
+    for (const workflow of workflows) {
+        try {
+            const response = await fetch(`${API_BASE}/api/models/validate/${workflow}`);
+            const validation = await response.json();
+            
+            const workflowId = workflow === 'texture_workflow' ? 'textureValidation' : 'spriteValidation';
+            const element = document.getElementById(workflowId);
+            
+            if (element) {
+                const icon = element.querySelector('.validation-icon');
+                const text = element.querySelector('span:last-child');
+                
+                if (validation.valid) {
+                    icon.textContent = '✅';
+                    element.classList.remove('validation-error');
+                    element.classList.add('validation-success');
+                } else {
+                    icon.textContent = '⚠️';
+                    element.classList.remove('validation-success');
+                    element.classList.add('validation-error');
+                    element.title = validation.missing.map(m => m.description).join(', ');
+                }
+            }
+        } catch (error) {
+            console.error('Error validating workflow:', workflow, error);
+        }
+    }
+}
+
+// Initialize model validation on page load
+document.addEventListener('DOMContentLoaded', () => {
+    validateModels();
+});

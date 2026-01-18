@@ -27,6 +27,7 @@ from project_init import (
     rename_existing_project,
     validate_project_name
 )
+from model_manager import ModelManager, get_default_comfyui_path
 
 app = Flask(__name__, static_folder=None, static_url_path=None)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
@@ -39,6 +40,10 @@ if not WORKSPACE_ROOT.exists():
 WEB_UI_DIR = Path(__file__).parent / "web_ui"
 UPLOAD_FOLDER = WEB_UI_DIR / "uploads"
 UPLOAD_FOLDER.mkdir(exist_ok=True)
+
+# Initialize Model Manager
+COMFYUI_ROOT = get_default_comfyui_path()
+model_manager = ModelManager(COMFYUI_ROOT)
 
 ALLOWED_MESH_EXTENSIONS = {'.fbx', '.obj', '.glb', '.gltf'}
 ALLOWED_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.tiff', '.exr'}
@@ -226,54 +231,7 @@ def list_files(project_name, file_type):
 # ---------------------------------------------------------
 # Pipeline Execution Routes
 # ---------------------------------------------------------
-
-@app.route("/api/pipeline/run", methods=["POST"])
-def run_pipeline():
-    """Start the pipeline for a project"""
-    try:
-        data = request.json
-        project_name = data.get("project")
-        
-        if not project_name:
-            return jsonify({
-                "status": "error",
-                "message": "Project name is required"
-            }), 400
-        
-        project_path = WORKSPACE_ROOT / project_name
-        if not project_path.exists():
-            return jsonify({
-                "status": "error",
-                "message": f"Project '{project_name}' does not exist"
-            }), 404
-        
-        # TODO: Implement actual pipeline execution
-        # For now, return a mock response
-        return jsonify({
-            "status": "success",
-            "message": "Pipeline started",
-            "job_id": "mock_job_123",
-            "project": project_name
-        })
-        
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
-
-
-@app.route("/api/pipeline/status/<job_id>", methods=["GET"])
-def pipeline_status(job_id):
-    """Get pipeline execution status"""
-    # TODO: Implement actual status tracking
-    return jsonify({
-        "status": "success",
-        "job_id": job_id,
-        "stage": "texture_generation",
-        "progress": 45,
-        "message": "Generating UDIM textures..."
-    })
+# Moved to end of file before main()
 
 
 # ---------------------------------------------------------
@@ -584,6 +542,274 @@ def serve_texture_file(project_name, tex_type, filename):
 
 
 # ---------------------------------------------------------
+# Pipeline Execution Routes
+# ---------------------------------------------------------
+
+@app.route('/api/pipeline/run', methods=['POST'])
+def run_pipeline():
+    """Execute the pipeline for a project"""
+    data = request.get_json()
+    project_name = data.get('project_name')
+    
+    if not project_name:
+        return jsonify({'error': 'Project name is required'}), 400
+    
+    project_path = WORKSPACE_ROOT / project_name
+    if not project_path.exists():
+        return jsonify({'error': 'Project not found'}), 404
+    
+    # Import and run pipeline orchestrator
+    import subprocess
+    import sys
+    
+    pipeline_script = Path(__file__).parent / "run_pipeline.py"
+    
+    try:
+        # Run pipeline in background
+        process = subprocess.Popen(
+            [sys.executable, str(pipeline_script), str(project_path)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        return jsonify({
+            'status': 'started',
+            'project': project_name,
+            'pid': process.pid,
+            'message': 'Pipeline execution started'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/pipeline/status/<project_name>', methods=['GET'])
+def get_pipeline_status(project_name):
+    """Get pipeline status for a project"""
+    project_path = WORKSPACE_ROOT / project_name
+    if not project_path.exists():
+        return jsonify({'error': 'Project not found'}), 404
+    
+    # Import pipeline orchestrator
+    from run_pipeline import PipelineOrchestrator
+    
+    try:
+        orchestrator = PipelineOrchestrator(project_path)
+        status = orchestrator.get_pipeline_status()
+        
+        return jsonify(status)
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/pipeline/log/<project_name>', methods=['GET'])
+def get_pipeline_log(project_name):
+    """Get pipeline log for a project"""
+    project_path = WORKSPACE_ROOT / project_name
+    log_path = project_path / "pipeline" / "pipeline_log.txt"
+    
+    if not log_path.exists():
+        return jsonify({'log': ''})
+    
+    try:
+        with open(log_path, 'r') as f:
+            log_content = f.read()
+        
+        # Get last N lines if requested
+        lines = request.args.get('lines', type=int)
+        if lines:
+            log_lines = log_content.split('\n')
+            log_content = '\n'.join(log_lines[-lines:])
+        
+        return jsonify({'log': log_content})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------
+# Model Management Routes
+# ---------------------------------------------------------
+
+@app.route('/api/models/list', methods=['GET'])
+def list_models():
+    """List all available ComfyUI models"""
+    try:
+        model_type = request.args.get('type')
+        
+        if model_type:
+            # List specific type
+            models = model_manager.list_models(model_type)
+            return jsonify({
+                'type': model_type,
+                'models': models,
+                'count': len(models)
+            })
+        else:
+            # List all types
+            all_models = model_manager.list_all_models()
+            total = sum(len(models) for models in all_models.values())
+            
+            return jsonify({
+                'models': all_models,
+                'total_count': total
+            })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/models/upload', methods=['POST'])
+def upload_model():
+    """Upload a ComfyUI model file"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        model_type = request.form.get('type')
+        
+        if not model_type:
+            return jsonify({'error': 'Model type is required'}), 400
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        filename = secure_filename(file.filename)
+        
+        # Validate file extension
+        if not model_manager.validate_model_file(filename, model_type):
+            valid_exts = model_manager.MODEL_EXTENSIONS.get(model_type, [])
+            return jsonify({
+                'error': f'Invalid file type for {model_type}. Expected: {", ".join(valid_exts)}'
+            }), 400
+        
+        # Save file
+        save_path = model_manager.get_model_save_path(filename, model_type)
+        file.save(save_path)
+        
+        # Get file info
+        model_info = model_manager.get_model_info(model_type, filename)
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Model uploaded: {filename}',
+            'model': model_info
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/models/delete', methods=['POST'])
+def delete_model():
+    """Delete a ComfyUI model file"""
+    try:
+        data = request.get_json()
+        model_type = data.get('type')
+        filename = data.get('filename')
+        
+        if not model_type or not filename:
+            return jsonify({'error': 'Model type and filename required'}), 400
+        
+        success = model_manager.delete_model(model_type, filename)
+        
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': f'Model deleted: {filename}'
+            })
+        else:
+            return jsonify({'error': 'Model not found'}), 404
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/models/validate/<workflow_name>', methods=['GET'])
+def validate_workflow_models(workflow_name):
+    """Validate that all required models exist for a workflow"""
+    try:
+        validation = model_manager.validate_workflow_models(workflow_name)
+        return jsonify(validation)
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/models/selected/<workflow_name>', methods=['GET'])
+def get_selected_models(workflow_name):
+    """Get currently selected models for a workflow"""
+    try:
+        selected = model_manager.get_selected_models(workflow_name)
+        
+        # If no selections, try auto-select
+        if not selected:
+            selected = model_manager.auto_select_models(workflow_name)
+        
+        return jsonify({
+            'workflow': workflow_name,
+            'selected': selected
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/models/selected/<workflow_name>', methods=['POST'])
+def set_selected_models(workflow_name):
+    """Save model selections for a workflow"""
+    try:
+        data = request.get_json()
+        model_selections = data.get('selections', {})
+        
+        model_manager.set_selected_models(workflow_name, model_selections)
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Model selections saved',
+            'workflow': workflow_name,
+            'selected': model_selections
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/models/auto-select/<workflow_name>', methods=['GET'])
+def auto_select_models(workflow_name):
+    """Auto-select models for a workflow"""
+    try:
+        selections = model_manager.auto_select_models(workflow_name)
+        
+        return jsonify({
+            'workflow': workflow_name,
+            'selected': selections
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/models/download/<model_type>/<filename>', methods=['GET'])
+def download_model(model_type, filename):
+    """Download a model file"""
+    try:
+        model_dir = model_manager.get_model_path(model_type)
+        file_path = model_dir / filename
+        
+        if not file_path.exists():
+            return jsonify({'error': 'Model not found'}), 404
+        
+        return send_file(file_path, as_attachment=True)
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------
 # Main
 # ---------------------------------------------------------
 def main():
@@ -622,3 +848,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
