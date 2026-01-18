@@ -4,6 +4,12 @@ set -e
 # Activate Python virtual environment
 source "${VIRTUAL_ENV}/bin/activate"
 
+# Remove old ComfyUI symlink if it exists (from previous version)
+if [ -L "/workspace/ComfyUI" ]; then
+  echo "Removing old ComfyUI symlink..."
+  rm /workspace/ComfyUI
+fi
+
 # Setup persistent ComfyUI models directory
 if [ ! -d "/workspace/ComfyUI/models" ]; then
   echo "Creating persistent ComfyUI models directory structure..."
