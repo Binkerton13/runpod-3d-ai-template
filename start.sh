@@ -4,6 +4,12 @@ set -e
 # Activate Python virtual environment
 source "${VIRTUAL_ENV}/bin/activate"
 
+# Create symlink to ComfyUI if it doesn't exist
+if [ ! -e "/workspace/ComfyUI" ]; then
+  echo "Creating symlink to ComfyUI..."
+  ln -s /opt/comfyui /workspace/ComfyUI
+fi
+
 # Copy pipeline files to workspace if not already there
 if [ ! -d "/workspace/pipeline" ]; then
   echo "Copying pipeline to /workspace..."
