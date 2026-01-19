@@ -135,25 +135,35 @@ class PipelineOrchestrator:
         
         try:
             self.log(f"  Executing: {' '.join(cmd)}")
-            result = subprocess.run(
+            
+            # Stream output in real-time instead of capturing
+            process = subprocess.Popen(
                 cmd,
                 cwd=script_path.parent,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                timeout=3600  # 1 hour timeout
+                bufsize=1
             )
             
-            if result.returncode == 0:
+            # Stream output line by line
+            for line in process.stdout:
+                line = line.rstrip()
+                if line:  # Only log non-empty lines
+                    self.log(f"    {line}")
+            
+            # Wait for completion with timeout
+            try:
+                returncode = process.wait(timeout=3600)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                raise
+            
+            if returncode == 0:
                 self.log(f"  ✓ {stage['name']} completed successfully")
-                
-                # Log output if verbose
-                if result.stdout:
-                    self.log(f"  Output: {result.stdout[:500]}")
-                
                 return True
             else:
-                self.log(f"  ✗ {stage['name']} failed with code {result.returncode}")
-                self.log(f"  Error: {result.stderr}")
+                self.log(f"  ✗ {stage['name']} failed with code {returncode}")
                 return False
         
         except subprocess.TimeoutExpired:
