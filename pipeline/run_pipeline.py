@@ -102,6 +102,8 @@ class PipelineOrchestrator:
         stage = self.stages[stage_name]
         
         if not self.should_run_stage(stage_name):
+            # Stage was skipped - still return True so pipeline continues
+            # but mark in logs that it was skipped, not completed
             return True
         
         self.log(f"Starting stage: {stage['name']}")
@@ -113,6 +115,12 @@ class PipelineOrchestrator:
         
         # Build command based on stage
         script_path = Path(__file__).parent / stage['script']
+        
+        # Check if script exists
+        if not script_path.exists():
+            self.log(f"  ✗ Script not found: {stage['script']}")
+            self.log(f"  This stage is not yet implemented")
+            return False
         
         if stage_name in ['rigging', 'animation', 'sprites']:
             # Blender scripts
