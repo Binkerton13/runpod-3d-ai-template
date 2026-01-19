@@ -51,22 +51,127 @@ def import_mesh(mesh_path):
 
 def apply_unirig(mesh_obj, config):
     """
-    Apply UniRig auto-rigging
-    NOTE: This is a placeholder - integrate actual UniRig when available
+    Apply UniRig auto-rigging using subprocess calls to UniRig scripts
     """
+    import subprocess
+    import tempfile
+    
     print("\n=== UniRig Auto-Rigging ===")
     
     rigging_config = config.get('rigging', {})
     preset = rigging_config.get('preset', 'humanoid')
+    seed = rigging_config.get('seed', 42)
     
     print(f"Rigging preset: {preset}")
-    print("WARNING: UniRig integration not yet implemented")
-    print("This is a placeholder that will be replaced with actual UniRig code")
+    print(f"Random seed: {seed}")
     
-    # For now, just add a basic armature as placeholder
+    # Create temporary directory for UniRig processing
+    with tempfile.TemporaryDirectory() as tmpdir:
+        temp_input = f"{tmpdir}/input_mesh.fbx"
+        temp_skeleton = f"{tmpdir}/skeleton.fbx"
+        temp_skin = f"{tmpdir}/skin.fbx"
+        temp_output = f"{tmpdir}/rigged.fbx"
+        
+        # Export current mesh to temporary FBX
+        print("Exporting mesh for UniRig...")
+        bpy.ops.export_scene.fbx(
+            filepath=temp_input,
+            use_selection=True,
+            object_types={'MESH'},
+            path_mode='COPY',
+            embed_textures=True
+        )
+        
+        # Step 1: Generate skeleton
+        print("Running UniRig skeleton prediction...")
+        skeleton_cmd = [
+            "bash", "/workspace/unirig/launch/inference/generate_skeleton.sh",
+            "--input", temp_input,
+            "--output", temp_skeleton,
+            "--seed", str(seed)
+        ]
+        
+        try:
+            result = subprocess.run(skeleton_cmd, check=True, capture_output=True, text=True)
+            print("Skeleton generation complete")
+            if result.stdout:
+                print(result.stdout)
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: Skeleton generation failed: {e}")
+            print(f"stdout: {e.stdout}")
+            print(f"stderr: {e.stderr}")
+            # Fall back to basic armature
+            return create_basic_armature(mesh_obj)
+        
+        # Step 2: Generate skinning weights
+        print("Running UniRig skinning prediction...")
+        skin_cmd = [
+            "bash", "/workspace/unirig/launch/inference/generate_skin.sh",
+            "--input", temp_skeleton,
+            "--output", temp_skin
+        ]
+        
+        try:
+            result = subprocess.run(skin_cmd, check=True, capture_output=True, text=True)
+            print("Skinning generation complete")
+            if result.stdout:
+                print(result.stdout)
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: Skinning generation failed: {e}")
+            print(f"stdout: {e.stdout}")
+            print(f"stderr: {e.stderr}")
+            # Use skeleton without skinning
+            temp_skin = temp_skeleton
+        
+        # Step 3: Merge rigged result back with original mesh
+        print("Merging UniRig results...")
+        merge_cmd = [
+            "bash", "/workspace/unirig/launch/inference/merge.sh",
+            "--source", temp_skin,
+            "--target", temp_input,
+            "--output", temp_output
+        ]
+        
+        try:
+            result = subprocess.run(merge_cmd, check=True, capture_output=True, text=True)
+            print("Merge complete")
+            if result.stdout:
+                print(result.stdout)
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: Merge failed: {e}")
+            print(f"stdout: {e.stdout}")
+            print(f"stderr: {e.stderr}")
+            return create_basic_armature(mesh_obj)
+        
+        # Import the rigged result
+        print("Importing rigged mesh...")
+        clear_scene()
+        bpy.ops.import_scene.fbx(filepath=temp_output)
+        
+        # Find the imported armature
+        armature = None
+        for obj in bpy.context.scene.objects:
+            if obj.type == 'ARMATURE':
+                armature = obj
+                armature.name = "UniRig_Armature"
+                break
+        
+        if not armature:
+            print("WARNING: No armature found in UniRig output, creating basic armature")
+            return create_basic_armature(mesh_obj)
+        
+        print(f"UniRig rigging complete: {armature.name}")
+        return armature
+
+
+def create_basic_armature(mesh_obj):
+    """
+    Fallback: Create a basic armature if UniRig fails
+    """
+    print("Creating basic fallback armature...")
     bpy.ops.object.armature_add(location=(0, 0, 0))
     armature = bpy.context.active_object
-    armature.name = "UniRig_Armature"
+    armature.name = "Fallback_Armature"
     
     # Parent mesh to armature
     mesh_obj.select_set(True)
@@ -74,7 +179,7 @@ def apply_unirig(mesh_obj, config):
     bpy.context.view_layer.objects.active = armature
     bpy.ops.object.parent_set(type='ARMATURE_AUTO')
     
-    print(f"Created placeholder armature: {armature.name}")
+    print(f"Created fallback armature: {armature.name}")
     return armature
 
 

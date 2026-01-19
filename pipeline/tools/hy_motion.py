@@ -2,17 +2,13 @@
 
 import sys
 import json
+import subprocess
 from pathlib import Path
-
-# Add HY-Motion repo to Python path
-sys.path.append("/workspace/hy-motion")
-
-from inference import HunyuanMotionPipeline
 
 
 def generate_animation(project_path: Path, config: dict):
     """
-    Generates animations using HY-Motion Python API.
+    Generates animations using HY-Motion via subprocess calls.
     """
     project_path = Path(project_path)
     
@@ -39,36 +35,64 @@ def generate_animation(project_path: Path, config: dict):
         print("Using default animation: idle")
         selected_animations = ['idle']
     
-    print(f"\n[HY-MOTION] Loading pipeline...")
-    pipe = HunyuanMotionPipeline.from_pretrained(
-        "/workspace/hy-motion",
-        torch_dtype="float16",
-        device="cuda"
-    )
-    
     # Generate each selected animation
     for anim_name in selected_animations:
         print(f"\n[HY-MOTION] Generating animation: {anim_name}")
         
-        # Load prompt for this animation
-        prompt_path = Path(__file__).parent.parent / "hy_motion_prompts" / "single_output" / "motion.txt"
-        if not prompt_path.exists():
-            print(f"WARNING: Prompt file not found: {prompt_path}")
-            prompt_text = f"Generate {anim_name} animation"
-        else:
-            prompt_text = prompt_path.read_text()
+        # Prepare prompt for this animation
+        # Load from animation library if available, otherwise use animation name
+        prompt_lib_path = Path(__file__).parent.parent / "hy_motion_prompts" / "prompt_library.json"
         
-        # Generate animation
+        if prompt_lib_path.exists():
+            with open(prompt_lib_path, 'r') as f:
+                prompt_lib = json.load(f)
+                animation_data = prompt_lib.get('animations', {}).get(anim_name, {})
+                prompt_text = animation_data.get('motion', f"A person performs {anim_name} animation")
+        else:
+            prompt_text = f"A person performs {anim_name} animation"
+        
+        print(f"Prompt: {prompt_text}")
+        
+        # Output path for this animation
         output_path = anim_dir / f"{rigged_mesh.stem}_{anim_name}.fbx"
         
-        result = pipe(
-            prompt=prompt_text,
-            output_path=str(output_path)
-        )
+        # Call HY-Motion local_infer.py
+        # Model paths: /workspace/hy-motion/ckpts/tencent/HY-Motion-1.0 or HY-Motion-1.0-Lite
+        cmd = [
+            "python3",
+            "/workspace/hy-motion/local_infer.py",
+            "--model_path", "/workspace/hy-motion/ckpts/tencent/HY-Motion-1.0-Lite",
+            "--input_text", prompt_text,
+            "--output_dir", str(anim_dir),
+            "--disable_duration_est",  # Disable LLM duration estimation to save VRAM
+            "--disable_rewrite"  # Disable LLM prompt rewriting to save VRAM
+        ]
         
-        print(f"[✔] Animation saved: {output_path.name}")
+        try:
+            print(f"Running: {' '.join(cmd)}")
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            
+            if result.stdout:
+                print(result.stdout)
+            
+            # Find the generated file (HY-Motion names it automatically)
+            # Typically: output/local_infer/<timestamp>_<prompt_hash>.fbx
+            generated_files = list(anim_dir.glob("*.fbx"))
+            if generated_files:
+                latest_file = max(generated_files, key=lambda p: p.stat().st_mtime)
+                # Rename to our naming convention
+                latest_file.rename(output_path)
+                print(f"[✔] Animation saved: {output_path.name}")
+            else:
+                print(f"WARNING: No FBX file generated for {anim_name}")
+                
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: HY-Motion generation failed for {anim_name}")
+            print(f"stdout: {e.stdout}")
+            print(f"stderr: {e.stderr}")
+            continue
     
-    print(f"\n[✔] Generated {len(selected_animations)} animations")
+    print(f"\n[✔] Animation generation complete")
     return selected_animations
 
 

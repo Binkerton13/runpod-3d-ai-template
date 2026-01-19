@@ -15,7 +15,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Minimal runtime packages. Include build tools so we can install latest transformers from source.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git git-lfs \
-    curl ca-certificates \
+    curl ca-certificates wget \
     ffmpeg \
     python3-dev \
     build-essential \
@@ -46,6 +46,21 @@ USER app
 RUN pip install --no-cache-dir "numpy<2.0" scipy pillow opencv-python matplotlib scikit-image scikit-learn trimesh pygltflib huggingface_hub flask werkzeug && \
     pip install --no-cache-dir --upgrade git+https://github.com/huggingface/transformers.git
 
+# -----------------------------
+# Blender: 3D modeling and rendering
+# -----------------------------
+USER root
+
+ARG BLENDER_VERSION=4.0.2
+RUN cd /tmp && \
+    wget -q https://download.blender.org/release/Blender${BLENDER_VERSION%.*}/blender-${BLENDER_VERSION}-linux-x64.tar.xz && \
+    tar -xf blender-${BLENDER_VERSION}-linux-x64.tar.xz && \
+    rm blender-${BLENDER_VERSION}-linux-x64.tar.xz && \
+    mv blender-${BLENDER_VERSION}-linux-x64 /opt/ && \
+    ln -s /opt/blender-${BLENDER_VERSION}-linux-x64/blender /usr/local/bin/blender
+
+USER app
+
 # Clone ComfyUI into /opt/comfyui so it's always available
 USER root
 RUN git clone https://github.com/comfyanonymous/ComfyUI.git /opt/comfyui && \
@@ -62,6 +77,34 @@ RUN mkdir -p /opt/comfyui/custom_nodes && \
     git clone https://github.com/cubiq/ComfyUI_essentials.git && \
     git clone https://github.com/WASasquatch/was-node-suite-comfyui.git
 
+# -----------------------------
+# UniRig: Auto-Rigging
+# -----------------------------
+USER root
+WORKDIR ${WORKSPACE}
+
+RUN git clone https://github.com/VAST-AI-Research/UniRig.git ${WORKSPACE}/unirig && \
+    chown -R app:app ${WORKSPACE}/unirig
+
+# Remove bpy (Blender Python) and flash_attn from requirements (install separately if needed)
+RUN sed -i '/bpy/d' ${WORKSPACE}/unirig/requirements.txt && \
+    sed -i '/flash_attn/d' ${WORKSPACE}/unirig/requirements.txt
+
+# Install UniRig requirements
+RUN ${VIRTUAL_ENV}/bin/pip install --no-cache-dir -r ${WORKSPACE}/unirig/requirements.txt || true
+
+# -----------------------------
+# HY-Motion: Animation Generation
+# -----------------------------
+RUN git clone https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git ${WORKSPACE}/hy-motion && \
+    chown -R app:app ${WORKSPACE}/hy-motion
+
+# Install HY-Motion requirements
+RUN if [ -f "${WORKSPACE}/hy-motion/requirements.txt" ]; then \
+        ${VIRTUAL_ENV}/bin/pip install --no-cache-dir -r ${WORKSPACE}/hy-motion/requirements.txt || true; \
+    fi
+
+USER app
 WORKDIR ${WORKSPACE}
 
 # Create workspace scaffold as root, then change ownership to app user
