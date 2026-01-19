@@ -202,6 +202,7 @@ HTML_TEMPLATE = '''
                         <button onclick="editFile('{{ item.url_path }}', '{{ item.name }}')">✏️ Edit</button>
                         <a href="/download/{{ item.url_path }}" class="btn">⬇️ Download</a>
                     {% endif %}
+                    <button onclick="renameItem('{{ item.url_path }}', '{{ item.name }}', {{ 'true' if item.is_dir else 'false' }})">📝 Rename</button>
                     <button onclick="deleteItem('{{ item.url_path }}', {{ 'true' if item.is_dir else 'false' }})">🗑️ Delete</button>
                 </div>
             </div>
@@ -373,6 +374,26 @@ HTML_TEMPLATE = '''
             }
         }
         
+        function renameItem(path, currentName, isDir) {
+            const newName = prompt(`Rename ${isDir ? 'folder' : 'file'}:`, currentName);
+            if (newName && newName !== currentName) {
+                fetch('/rename', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: path, new_name: newName})
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(err => alert('Error: ' + err));
+            }
+        }
+        
         // Close modal on outside click
         window.onclick = function(event) {
             if (event.target.classList.contains('modal')) {
@@ -530,7 +551,27 @@ def delete_item(path):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
-
+@app.route('/rename', methods=['POST'])
+def rename_item():
+    try:
+        data = request.get_json()
+        old_path = get_safe_path(data.get('path'))
+        new_name = secure_filename(data.get('new_name'))
+        
+        # Get parent directory and construct new path
+        parent_dir = os.path.dirname(old_path)
+        new_path = os.path.join(parent_dir, new_name)
+        
+        # Ensure new path is safe
+        new_path = os.path.normpath(new_path)
+        if not new_path.startswith(os.path.normpath(BASE_DIR)):
+            return jsonify({'success': False, 'error': 'Invalid path'})
+        
+        # Rename
+        os.rename(old_path, new_path)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 if __name__ == '__main__':
     port = int(os.environ.get('FILE_BROWSER_PORT', 8080))
     print(f"Starting file browser on port {port}")

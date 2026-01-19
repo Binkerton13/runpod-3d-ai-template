@@ -87,7 +87,35 @@ def serve_pipeline_resources(filename):
 # ---------------------------------------------------------
 # File Upload Routes
 # ---------------------------------------------------------
-
+@app.route('/api/uploads/list', methods=['GET'])
+def list_uploads():
+    \"\"\"List all uploaded files\"\"\"
+    try:
+        file_type = request.args.get('type')  # 'mesh', 'udim', 'pose_reference', etc.
+        
+        files = []
+        if UPLOAD_FOLDER.exists():
+            for file_path in UPLOAD_FOLDER.iterdir():
+                if file_path.is_file():
+                    # Filter by type if specified
+                    if file_type:
+                        if file_type == 'mesh' and not file_path.suffix.lower() in ['.fbx', '.obj']:
+                            continue
+                        elif file_type == 'udim' and not file_path.suffix.lower() == '.png':
+                            continue
+                    
+                    files.append({
+                        'name': file_path.name,
+                        'path': str(file_path.relative_to(WORKSPACE_ROOT)),
+                        'size': file_path.stat().st_size,
+                        'modified': file_path.stat().st_mtime
+                    })
+        
+        files.sort(key=lambda x: x['modified'], reverse=True)
+        return jsonify({'files': files})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 @app.route("/api/upload", methods=["POST"])
 def upload_file():
     """Upload files (mesh, UDIM tiles, references)"""

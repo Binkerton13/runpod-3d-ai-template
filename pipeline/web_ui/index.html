@@ -50,6 +50,12 @@
                         </div>
                         <div class="file-info" id="meshInfo" style="display: none"></div>
                     </div>
+                    <div class="form-group" id="previousMeshGroup" style="display: none; margin-top: 0.5rem;">
+                        <label for="previousMeshSelect">Or select uploaded file:</label>
+                        <select id="previousMeshSelect" onchange="selectPreviousMesh(this.value)">
+                            <option value="">-- Choose file --</option>
+                        </select>
+                    </div>
                     <div class="form-group" id="meshTypeGroup" style="display: none; margin-top: 1rem;">
                         <label for="meshTypeSelect">Mesh Type</label>
                         <select id="meshTypeSelect" onchange="updateMeshType(this.value)">
@@ -607,5 +613,6 @@
     </div>
 
     <script src="/static/app.js"></script>
+    <script src="/static/mesh-selection.js"></script>
 </body>
 </html>

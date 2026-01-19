@@ -1117,6 +1117,9 @@ async function loadProject(projectName) {
             // Load animation overrides for this project
             await loadAnimationOverrides();
             
+            // Load previously uploaded mesh files
+            await loadUploadedMeshes();
+            
             setStatus(`Loaded project: ${projectName}`);
         }
     } catch (error) {

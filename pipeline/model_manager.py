@@ -99,17 +99,24 @@ class ModelManager:
         """
         model_dir = self.get_model_path(model_type)
         
+        print(f"[ModelManager] Scanning {model_type} in: {model_dir}")
+        
         if not model_dir.exists():
+            print(f"[ModelManager] Directory does not exist: {model_dir}")
             return []
         
         extensions = self.MODEL_EXTENSIONS.get(model_type, [])
+        print(f"[ModelManager] Looking for extensions: {extensions}")
         models = []
         
         for ext in extensions:
+            found_files = list(model_dir.rglob(f"*{ext}"))
+            print(f"[ModelManager] Found {len(found_files)} files with {ext} in {model_dir}")
             # Use rglob to recursively search subdirectories (e.g., checkpoints/sdxl/)
-            for model_file in model_dir.rglob(f"*{ext}"):
+            for model_file in found_files:
                 # Skip if it's not a file
                 if not model_file.is_file():
+                    print(f"[ModelManager] Skipping non-file: {model_file}")
                     continue
                     
                 stat = model_file.stat()
