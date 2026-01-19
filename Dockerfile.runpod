@@ -62,7 +62,8 @@ RUN mkdir -p /opt/comfyui/custom_nodes && \
 
 WORKDIR ${WORKSPACE}
 
-# Create workspace scaffold (empty) — expect repos/models to be mounted at runtime
+# Create workspace scaffold as root, then change ownership to app user
+USER root
 RUN mkdir -p ${WORKSPACE}/models/checkpoints \
              ${WORKSPACE}/models/loras \
              ${WORKSPACE}/models/vae \
@@ -73,7 +74,10 @@ RUN mkdir -p ${WORKSPACE}/models/checkpoints \
              ${WORKSPACE}/models/rigged \
              ${WORKSPACE}/renders \
              ${WORKSPACE}/animations \
-             ${WORKSPACE}/scripts
+             ${WORKSPACE}/scripts && \
+    chown -R app:app ${WORKSPACE}
+
+USER app
 
 # Add a lightweight start script that will run `git lfs pull` in any cloned repos
 # Place the start script in /usr/local/bin so a host mount of /workspace doesn't
