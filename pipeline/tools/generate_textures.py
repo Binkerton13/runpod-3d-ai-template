@@ -138,8 +138,71 @@ def update_workflow_params(workflow, udim_tile, udim_config, checkpoint_name=Non
     
     return workflow
 
-def generate_texture_for_tile(comfyui_url, workflow_path, udim_tile, udim_config, output_dir, texture_type="diffuse"):
-    """Generate texture for a single UDIM tile"""
+def update_pbr_workflow_params(workflow, udim_tile, texture_type, albedo_path):
+    """Update PBR workflow parameters (AO, normal, metallic, roughness)
+    
+    PBR workflows are simpler and use the albedo as input:
+    - pbr_ao.json: Node 1 (LoadImage), Node 4 (SaveImage)
+    - pbr_normal.json: Node 1 (LoadImage), Node 3 (SaveImage)
+    - pbr_metallic.json: Node 2 (SaveImage) - no input needed
+    - pbr_roughness.json: Node 1 (LoadImage), Node 4 (SaveImage)
+    """
+    nodes = workflow.get("nodes", [])
+    
+    for node in nodes:
+        node_id = node.get("id")
+        node_type = node.get("type")
+        inputs = node.get("inputs", {})
+        
+        # Update LoadImage node with albedo path
+        if node_type == "LoadImage" and albedo_path:
+            # Extract just the filename without extension for ComfyUI
+            from pathlib import Path
+            albedo_filename = Path(albedo_path).stem
+            inputs["image"] = albedo_filename
+            log(f"  Set input image: {albedo_filename}")
+        
+        # Update SaveImage node with proper filename
+        elif node_type == "SaveImage":
+            inputs["filename_prefix"] = f"{texture_type}_{udim_tile}"
+            log(f"  Set output filename: {texture_type}_{udim_tile}")
+    
+    return workflow
+
+def generate_pbr_maps(comfyui_url, project_dir, udim_tile, albedo_path):
+    """Generate all PBR maps from the albedo texture"""
+    workflow_base = Path(__file__).parent.parent / "comfui_workflows"
+    texture_dir = project_dir / "1_textures"
+    
+    pbr_maps = {
+        "normal": "pbr_normal.json",
+        "ao": "pbr_ao.json", 
+        "roughness": "pbr_roughness.json",
+        "metallic": "pbr_metallic.json"
+    }
+    
+    success_count = 0
+    for map_type, workflow_file in pbr_maps.items():
+        workflow_path = workflow_base / workflow_file
+        
+        if not workflow_path.exists():
+            log(f"WARNING: Workflow not found: {workflow_path}")
+            continue
+        
+        log(f"\nGenerating {map_type} map for tile {udim_tile}...")
+        if generate_texture_for_tile(comfyui_url, workflow_path, udim_tile, {}, texture_dir, map_type, albedo_path):
+            success_count += 1
+        else:
+            log(f"WARNING: Failed to generate {map_type} map")
+    
+    return success_count
+
+def generate_texture_for_tile(comfyui_url, workflow_path, udim_tile, udim_config, output_dir, texture_type="diffuse", albedo_path=None):
+    """Generate texture for a single UDIM tile
+    
+    Args:
+        albedo_path: For PBR maps (AO, normal, roughness), path to the albedo texture
+    """
     log(f"Generating {texture_type} texture for UDIM tile {udim_tile}")
     
     # Load workflow template
@@ -147,8 +210,12 @@ def generate_texture_for_tile(comfyui_url, workflow_path, udim_tile, udim_config
     if not workflow:
         return False
     
-    # Update workflow with UDIM configuration
-    workflow = update_workflow_params(workflow, udim_tile, udim_config)
+    # Update workflow based on texture type
+    if texture_type == "diffuse":
+        workflow = update_workflow_params(workflow, udim_tile, udim_config)
+    else:
+        # PBR maps need the albedo as input
+        workflow = update_pbr_workflow_params(workflow, udim_tile, texture_type, albedo_path)
     
     # Queue the prompt
     result = queue_prompt(comfyui_url, workflow)
@@ -162,10 +229,6 @@ def generate_texture_for_tile(comfyui_url, workflow_path, udim_tile, udim_config
     # Wait for completion
     if not wait_for_completion(comfyui_url, prompt_id):
         return False
-    
-    # Download generated texture
-    # Note: Actual file download would require ComfyUI output node configuration
-    # For now, we assume textures are saved to the output directory by ComfyUI
     
     log(f"Successfully generated {texture_type} texture for tile {udim_tile}")
     return True
@@ -218,27 +281,53 @@ def main():
     
     log(f"Using workflow: {workflow_path}")
     
-    # Generate textures for each UDIM tile
+    # Generate diffuse/albedo textures for each UDIM tile
     success_count = 0
+    albedo_paths = {}  # Store albedo paths for PBR map generation
+    
     for tile_id, tile_config in udim_tiles.items():
-        log(f"\nProcessing UDIM tile {tile_id}")
+        log(f"\n{'='*80}")
+        log(f"Processing UDIM tile {tile_id} - Diffuse/Albedo")
+        log(f"{'='*80}")
         log(f"  Prompt: {tile_config.get('prompt', 'N/A')}")
         log(f"  Seed: {tile_config.get('seed', 42)}")
         
         if generate_texture_for_tile(comfyui_url, workflow_path, tile_id, tile_config, texture_dir):
             success_count += 1
+            # Save albedo path for PBR generation (assuming ComfyUI saves to texture_dir)
+            albedo_paths[tile_id] = texture_dir / f"texture_{tile_id}.png"
+            log(f"✓ Diffuse texture generated for tile {tile_id}")
         else:
-            log(f"WARNING: Failed to generate texture for tile {tile_id}")
-    
-    # Summary
-    log("\n================================================================================")
-    log(f"Texture generation complete: {success_count}/{len(udim_tiles)} tiles successful")
-    log(f"Textures saved to: {texture_dir}")
-    log("================================================================================")
+            log(f"✗ Failed to generate diffuse texture for tile {tile_id}")
     
     if success_count == 0:
-        log("ERROR: No textures were generated successfully")
+        log("\nERROR: No diffuse textures were generated successfully")
         sys.exit(1)
+    
+    # Generate PBR maps (normal, AO, roughness, metallic) from albedo
+    log(f"\n{'='*80}")
+    log("Generating PBR Maps from Albedo Textures")
+    log(f"{'='*80}")
+    
+    pbr_success_count = 0
+    for tile_id, albedo_path in albedo_paths.items():
+        if not albedo_path.exists():
+            log(f"WARNING: Albedo not found for tile {tile_id}, skipping PBR maps")
+            continue
+        
+        log(f"\nGenerating PBR maps for tile {tile_id}...")
+        maps_generated = generate_pbr_maps(comfyui_url, project_dir, tile_id, str(albedo_path))
+        pbr_success_count += maps_generated
+        log(f"✓ Generated {maps_generated}/4 PBR maps for tile {tile_id}")
+    
+    # Summary
+    log("\n" + "="*80)
+    log("TEXTURE GENERATION COMPLETE")
+    log("="*80)
+    log(f"Diffuse/Albedo: {success_count}/{len(udim_tiles)} tiles successful")
+    log(f"PBR Maps: {pbr_success_count} maps generated")
+    log(f"Output directory: {texture_dir}")
+    log("="*80)
     
     sys.exit(0)
 
