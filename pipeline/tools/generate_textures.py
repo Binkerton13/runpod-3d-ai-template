@@ -84,28 +84,57 @@ def load_workflow(workflow_path):
         log(f"ERROR: Failed to load workflow {workflow_path}: {e}")
         return None
 
-def update_workflow_params(workflow, udim_config, checkpoint_name=None, lora_name=None):
-    """Update workflow parameters with UDIM tile configuration"""
-    # Find KSampler node and update seed
-    for node_id, node in workflow.items():
-        if node.get("class_type") == "KSampler":
-            if "inputs" in node:
-                node["inputs"]["seed"] = udim_config.get("seed", 42)
+def update_workflow_params(workflow, udim_tile, udim_config, checkpoint_name=None, uv_image_path=None):
+    """Update workflow parameters with UDIM tile configuration
+    
+    Node structure from texture_workflow.json:
+    - Node 2: CheckpointLoaderSimple (base model)
+    - Node 3: CLIPTextEncode (positive prompt)
+    - Node 4: CLIPTextEncode (negative prompt)
+    - Node 5: KSampler (primary sampler, seed)
+    - Node 11: KSampler (refiner sampler, seed)
+    - Node 1: LoadImage (UV layout)
+    - Node 7: SaveImage (output)
+    """
+    nodes = workflow.get("nodes", [])
+    
+    for node in nodes:
+        node_id = node.get("id")
+        node_type = node.get("type")
+        inputs = node.get("inputs", {})
         
-        # Update checkpoint loader
-        elif node.get("class_type") == "CheckpointLoaderSimple" and checkpoint_name:
-            if "inputs" in node:
-                node["inputs"]["ckpt_name"] = checkpoint_name
+        # Node 3: Positive prompt
+        if node_id == 3 and node_type == "CLIPTextEncode":
+            inputs["text"] = udim_config.get("prompt", "3D game character texture, high quality")
+            log(f"  Set positive prompt: {inputs['text'][:50]}...")
         
-        # Update text prompts
-        elif node.get("class_type") == "CLIPTextEncode":
-            if "inputs" in node and "text" in node["inputs"]:
-                # Check if this is positive or negative prompt based on node connections
-                # For now, update first prompt node with positive, second with negative
-                if "prompt" in udim_config and node["inputs"]["text"] == "":
-                    node["inputs"]["text"] = udim_config["prompt"]
-                elif "negative_prompt" in udim_config:
-                    node["inputs"]["text"] = udim_config.get("negative_prompt", "")
+        # Node 4: Negative prompt
+        elif node_id == 4 and node_type == "CLIPTextEncode":
+            inputs["text"] = udim_config.get("negative_prompt", "blurry, low quality, distorted")
+            log(f"  Set negative prompt: {inputs['text'][:50]}...")
+        
+        # Node 5 & 11: KSamplers - update seed
+        elif node_id in [5, 11] and node_type == "KSampler":
+            seed = udim_config.get("seed", 42)
+            inputs["seed"] = seed
+            log(f"  Set KSampler (node {node_id}) seed: {seed}")
+        
+        # Node 2: Base checkpoint
+        elif node_id == 2 and node_type == "CheckpointLoaderSimple":
+            if checkpoint_name:
+                inputs["ckpt_name"] = checkpoint_name
+                log(f"  Set base checkpoint: {checkpoint_name}")
+        
+        # Node 1: UV layout image
+        elif node_id == 1 and node_type == "LoadImage":
+            if uv_image_path:
+                inputs["image"] = uv_image_path
+                log(f"  Set UV image: {uv_image_path}")
+        
+        # Node 7: SaveImage - set output filename with UDIM tile
+        elif node_id == 7 and node_type == "SaveImage":
+            inputs["filename_prefix"] = f"texture_{udim_tile}"
+            log(f"  Set output filename: texture_{udim_tile}")
     
     return workflow
 
@@ -119,7 +148,7 @@ def generate_texture_for_tile(comfyui_url, workflow_path, udim_tile, udim_config
         return False
     
     # Update workflow with UDIM configuration
-    workflow = update_workflow_params(workflow, udim_config)
+    workflow = update_workflow_params(workflow, udim_tile, udim_config)
     
     # Queue the prompt
     result = queue_prompt(comfyui_url, workflow)
