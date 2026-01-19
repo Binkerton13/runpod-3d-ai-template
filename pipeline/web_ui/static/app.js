@@ -1840,11 +1840,18 @@ async function runPipeline() {
     // Save config before running
     await saveConfig();
     
+    // Validate project is selected
+    if (!currentProject) {
+        showError('Please create or select a project first');
+        return;
+    }
+    
     const btn = document.getElementById('runPipelineBtn');
     btn.disabled = true;
     btn.textContent = '⏳ Starting Pipeline...';
     
     try {
+        console.log('Starting pipeline for project:', currentProject);
         const response = await fetch(`${API_BASE}/api/pipeline/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1853,7 +1860,9 @@ async function runPipeline() {
             })
         });
         
+        console.log('Pipeline run response status:', response.status);
         const data = await response.json();
+        console.log('Pipeline run response data:', data);
         
         if (response.ok) {
             showSuccess('Pipeline started successfully');
@@ -1902,7 +1911,7 @@ async function refreshPipelineStatus() {
     if (!currentProject) return;
     
     try {
-        const response = await fetch(`${API_BASE}/pipeline/status/${currentProject}`);
+        const response = await fetch(`${API_BASE}/api/pipeline/status/${currentProject}`);
         const data = await response.json();
         
         if (response.ok) {
