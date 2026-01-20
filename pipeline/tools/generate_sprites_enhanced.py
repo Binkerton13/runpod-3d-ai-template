@@ -592,6 +592,13 @@ def main(project_path, config_path=None):
     bpy.ops.object.delete()
     bpy.ops.import_scene.fbx(filepath=str(fbx_path))
     
+    # Purge old renders
+    if render_dir.exists():
+        print(f"\nPurging old renders from: {render_dir}")
+        shutil.rmtree(render_dir)
+        print("✓ Render folder cleared")
+    render_dir.mkdir(parents=True, exist_ok=True)
+    
     # Setup rendering
     setup_render_settings(quality_settings['resolution'], transparent_bg=True, samples=128)
     setup_lighting()
