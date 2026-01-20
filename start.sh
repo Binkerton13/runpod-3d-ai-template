@@ -24,6 +24,17 @@ if [ ! -d "/workspace/custom_nodes" ]; then
   chown -R app:app /workspace/custom_nodes || true
 fi
 
+# Install default custom nodes if directory is empty
+if [ -z "$(ls -A /workspace/custom_nodes)" ]; then
+  echo "Installing default ComfyUI custom nodes..."
+  cd /workspace/custom_nodes
+  git clone https://github.com/ltdrdata/ComfyUI-Manager.git || echo "Failed to clone ComfyUI-Manager"
+  git clone https://github.com/cubiq/ComfyUI_essentials.git || echo "Failed to clone ComfyUI_essentials"
+  git clone https://github.com/WASasquatch/was-node-suite-comfyui.git || echo "Failed to clone was-node-suite-comfyui"
+  chown -R app:app /workspace/custom_nodes || true
+  echo "Default custom nodes installed"
+fi
+
 # Symlink ComfyUI models directory to persistent storage
 if [ ! -L "/opt/comfyui/models" ] && [ -d "/opt/comfyui/models" ]; then
   echo "Linking ComfyUI models to persistent storage..."
