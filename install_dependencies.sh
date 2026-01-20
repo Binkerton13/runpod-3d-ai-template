@@ -178,7 +178,7 @@ echo ""
 echo -e "${YELLOW}[3/3] Installing HY-Motion...${NC}"
 echo ""
 
-HYMOTION_PATH="/workspace/hy-motion"
+HYMOTION_PATH="/workspace/HY-Motion"
 
 if [ -d "$HYMOTION_PATH" ]; then
     echo "HY-Motion directory already exists. Updating..."
@@ -188,6 +188,12 @@ else
     echo "Cloning HY-Motion repository..."
     git clone https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git "$HYMOTION_PATH"
     cd "$HYMOTION_PATH"
+fi
+
+# Create lowercase symlink for compatibility
+if [ ! -L "/workspace/hy-motion" ]; then
+    echo "Creating lowercase symlink..."
+    ln -s "$HYMOTION_PATH" /workspace/hy-motion
 fi
 
 # Install dependencies
