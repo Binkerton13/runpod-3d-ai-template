@@ -865,34 +865,37 @@
                     </div>
                     
                     <div class="model-category">
-                        <h4>Base Checkpoints (Choose based on quality preset)</h4>
+                        <h4>Base Checkpoints (SD 1.5 - Required for compatibility)</h4>
                         <p class="model-path"><strong>Directory:</strong> <code>ComfyUI/models/checkpoints/</code></p>
+                        <p style="color: var(--warning); margin-bottom: 1rem;">
+                            ⚠️ <strong>Must use SD 1.5 checkpoints</strong> - AnimateDiff, IP-Adapter, and ControlNet models are SD 1.5 only
+                        </p>
                         
                         <div class="model-item">
-                            <div class="model-name">sd_xl_turbo_1.0_fp16.safetensors</div>
-                            <div class="model-size">6.94 GB</div>
+                            <div class="model-name">realisticVisionV51_v51VAE.safetensors</div>
+                            <div class="model-size">2.13 GB</div>
                             <div class="model-link">
-                                <a href="https://huggingface.co/stabilityai/sdxl-turbo/tree/main" target="_blank">Download from HuggingFace</a>
+                                <a href="https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE/tree/main" target="_blank">Download from HuggingFace</a>
                             </div>
-                            <p class="model-description">Fast Prototype quality preset (~2-3 sec/frame)</p>
+                            <p class="model-description">Photorealistic characters - Recommended for game sprites</p>
                         </div>
                         
                         <div class="model-item">
-                            <div class="model-name">sdxl_lightning_4step.safetensors</div>
-                            <div class="model-size">6.94 GB</div>
+                            <div class="model-name">dreamshaper_8.safetensors</div>
+                            <div class="model-size">2.0 GB</div>
                             <div class="model-link">
-                                <a href="https://huggingface.co/ByteDance/SDXL-Lightning/tree/main" target="_blank">Download from HuggingFace</a>
+                                <a href="https://huggingface.co/Lykon/DreamShaper/tree/main" target="_blank">Download from HuggingFace</a>
                             </div>
-                            <p class="model-description">Balanced quality preset (~5-8 sec/frame) - Recommended</p>
+                            <p class="model-description">Versatile style - Good for stylized/anime sprites</p>
                         </div>
                         
                         <div class="model-item">
-                            <div class="model-name">sd_xl_base_1.0.safetensors</div>
-                            <div class="model-size">6.94 GB</div>
+                            <div class="model-name">v1-5-pruned-emaonly.safetensors</div>
+                            <div class="model-size">4.27 GB</div>
                             <div class="model-link">
-                                <a href="https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/tree/main" target="_blank">Download from HuggingFace</a>
+                                <a href="https://huggingface.co/runwayml/stable-diffusion-v1-5/tree/main" target="_blank">Download from HuggingFace</a>
                             </div>
-                            <p class="model-description">High/Ultra quality presets (~15-40 sec/frame)</p>
+                            <p class="model-description">Original SD 1.5 base - Stable and widely compatible</p>
                         </div>
                     </div>
                 </div>
@@ -906,23 +909,23 @@
                         <li>✅ Download AnimateDiff motion model (1.7 GB)</li>
                         <li>✅ Download IP-Adapter models (4 GB total)</li>
                         <li>✅ Download ControlNet models (6 GB - all 4 models)</li>
-                        <li>✅ Download at least one base checkpoint (7 GB)</li>
+                        <li>✅ Download one SD 1.5 checkpoint (2-4 GB)</li>
                         <li>✅ Restart ComfyUI after installing nodes</li>
                         <li>✅ Test workflow with sample project</li>
                     </ul>
                     
                     <div class="setup-note">
-                        <strong>💡 Tip:</strong> You can start with just SDXL-Lightning checkpoint for balanced quality/speed. 
-                        Add SDXL-Turbo for fast prototyping or SDXL 1.0 for maximum quality later.
+                        <strong>💡 Tip:</strong> Start with Realistic Vision V5.1 for photorealistic sprites or DreamShaper 8 for stylized/anime sprites. 
+                        Both are optimized for character generation.
                     </div>
                     
                     <div class="setup-note" style="margin-top: 1rem;">
                         <strong>⚠️ VRAM Requirements:</strong>
                         <ul>
-                            <li>Fast Prototype: ~4 GB VRAM</li>
-                            <li>Balanced: ~6 GB VRAM</li>
-                            <li>High Quality: ~8 GB VRAM</li>
-                            <li>Ultra Quality: ~12 GB VRAM</li>
+                            <li>Fast/Prototype: ~6 GB VRAM (SD 1.5 + AnimateDiff)</li>
+                            <li>Balanced: ~8 GB VRAM (with ControlNets)</li>
+                            <li>High Quality: ~10 GB VRAM (all ControlNets + IP-Adapter)</li>
+                            <li>Ultra Quality: ~12 GB VRAM (highest settings)</li>
                         </ul>
                     </div>
                 </div>
