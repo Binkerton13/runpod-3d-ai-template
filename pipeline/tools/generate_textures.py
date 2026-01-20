@@ -374,17 +374,21 @@ def main():
     log(f"\n{'='*80}")
     log("Generating PBR Maps from Albedo Textures")
     log(f"{'='*80}")
+    log("INFO: PBR map generation disabled - workflows require additional ComfyUI nodes")
+    log("INFO: Nodes needed: NormalMap, ImageToGray, ConstantColor (not in base/essentials)")
+    log("INFO: Install required custom nodes or use external tools for PBR maps")
     
     pbr_success_count = 0
-    for tile_id, albedo_path in albedo_paths.items():
-        if not albedo_path.exists():
-            log(f"WARNING: Albedo not found for tile {tile_id}, skipping PBR maps")
-            continue
-        
-        log(f"\nGenerating PBR maps for tile {tile_id}...")
-        maps_generated = generate_pbr_maps(comfyui_url, project_dir, tile_id, str(albedo_path))
-        pbr_success_count += maps_generated
-        log(f"✓ Generated {maps_generated}/4 PBR maps for tile {tile_id}")
+    # Commented out until proper workflows are available
+    # for tile_id, albedo_path in albedo_paths.items():
+    #     if not albedo_path.exists():
+    #         log(f"WARNING: Albedo not found for tile {tile_id}, skipping PBR maps")
+    #         continue
+    #     
+    #     log(f"\nGenerating PBR maps for tile {tile_id}...")
+    #     maps_generated = generate_pbr_maps(comfyui_url, project_dir, tile_id, str(albedo_path))
+    #     pbr_success_count += maps_generated
+    #     log(f"✓ Generated {maps_generated}/4 PBR maps for tile {tile_id}")
     
     # Summary
     log("\n" + "="*80)
