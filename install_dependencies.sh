@@ -200,9 +200,10 @@ fi
 if [ -f "requirements.txt" ]; then
     echo "Installing HY-Motion dependencies..."
     if [ -n "$VIRTUAL_ENV" ]; then
-        pip install -r requirements.txt
+        # Use --no-user to avoid site-packages conflicts
+        pip install --no-user --upgrade -r requirements.txt
     else
-        python3 -m pip install -r requirements.txt
+        python3 -m pip install --upgrade -r requirements.txt
     fi
 else
     echo -e "${YELLOW}No requirements.txt found in HY-Motion repo${NC}"
