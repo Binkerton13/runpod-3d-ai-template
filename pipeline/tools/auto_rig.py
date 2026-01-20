@@ -64,10 +64,16 @@ def validate_and_clean_mesh(mesh_obj):
     mesh_obj.select_set(True)
     bpy.ops.object.mode_set(mode='EDIT')
     
+    # Get bmesh for accurate selection checking
+    import bmesh
+    bm = bmesh.from_edit_mesh(mesh)
+    
     # Check for non-manifold geometry
     bpy.ops.mesh.select_all(action='DESELECT')
     bpy.ops.mesh.select_non_manifold()
-    non_manifold_count = len([v for v in mesh.vertices if v.select])
+    bm = bmesh.from_edit_mesh(mesh)  # Refresh after selection
+    non_manifold_count = sum(1 for v in bm.verts if v.select)
+    
     if non_manifold_count > 0:
         print(f"⚠ Non-manifold geometry detected: {non_manifold_count} vertices")
         print("  Attempting to fix...")
@@ -79,20 +85,24 @@ def validate_and_clean_mesh(mesh_obj):
     # Check for loose vertices
     bpy.ops.mesh.select_all(action='DESELECT')
     bpy.ops.mesh.select_loose()
-    loose_count = len([v for v in mesh.vertices if v.select])
+    bm = bmesh.from_edit_mesh(mesh)  # Refresh after selection
+    loose_count = sum(1 for v in bm.verts if v.select)
+    
     if loose_count > 0:
         print(f"⚠ Loose vertices detected: {loose_count}")
         print("  Removing loose geometry...")
-        bpy.ops.mesh.delete(type='VERT')
-        print("  ✓ Removed loose vertices")
+        removed_count = bpy.ops.mesh.delete(type='VERT')
+        print(f"  ✓ Removed {loose_count} loose vertices")
     else:
         print("✓ No loose vertices")
     
     # Remove duplicate vertices
     bpy.ops.mesh.select_all(action='SELECT')
-    removed = bpy.ops.mesh.remove_doubles(threshold=0.0001)
-    if removed:
-        print(f"✓ Merged {removed} duplicate vertices")
+    result = bpy.ops.mesh.remove_doubles(threshold=0.0001)
+    bm = bmesh.from_edit_mesh(mesh)
+    # remove_doubles returns a set, check if FINISHED
+    if result == {'FINISHED'}:
+        print(f"✓ Merged duplicate vertices")
     else:
         print("✓ No duplicate vertices")
     
