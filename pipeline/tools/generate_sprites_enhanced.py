@@ -193,68 +193,18 @@ def setup_lighting():
 
 def render_controlnet_maps(output_dir, frame_num, angle_label):
     """
-    Render ControlNet input maps (OpenPose, Depth, Normal, Canny).
+    Render basic pose frame (compositor disabled for performance).
     Returns dict of rendered map paths.
     """
     scene = bpy.context.scene
     maps = {}
     
-    # Enable necessary render passes
-    scene.view_layers[0].use_pass_z = True  # Depth pass
-    scene.view_layers[0].use_pass_normal = True  # Normal pass
-    
-    # OpenPose: Render with compositor nodes for pose visualization
-    # (Simplified - full implementation would use OpenPose estimation)
+    # Simplified: Just render the basic pose without compositor processing
+    # TODO: Re-enable depth/normal maps once compositor performance is optimized
     pose_path = output_dir / f"pose_{angle_label}_f{frame_num:04d}.png"
-    # TODO: Implement proper OpenPose skeleton rendering
-    # For now, use regular render as placeholder
     scene.render.filepath = str(pose_path)
     bpy.ops.render.render(write_still=True)
-    maps['openpose'] = pose_path
-    
-    # Depth map
-    scene.use_nodes = True
-    tree = scene.node_tree
-    tree.nodes.clear()
-    
-    render_layers = tree.nodes.new('CompositorNodeRLayers')
-    normalize = tree.nodes.new('CompositorNodeNormalize')
-    composite = tree.nodes.new('CompositorNodeComposite')
-    
-    tree.links.new(render_layers.outputs['Depth'], normalize.inputs[0])
-    tree.links.new(normalize.outputs[0], composite.inputs[0])
-    
-    depth_path = output_dir / f"depth_{angle_label}_f{frame_num:04d}.png"
-    scene.render.filepath = str(depth_path)
-    bpy.ops.render.render(write_still=True)
-    maps['depth'] = depth_path
-    
-    # Normal map
-    tree.nodes.clear()
-    render_layers = tree.nodes.new('CompositorNodeRLayers')
-    composite = tree.nodes.new('CompositorNodeComposite')
-    tree.links.new(render_layers.outputs['Normal'], composite.inputs[0])
-    
-    normal_path = output_dir / f"normal_{angle_label}_f{frame_num:04d}.png"
-    scene.render.filepath = str(normal_path)
-    bpy.ops.render.render(write_still=True)
-    maps['normal'] = normal_path
-    
-    # Reset compositor
-    scene.use_nodes = False
-    
-    # Canny edges (post-process from render using PIL)
-    render_path = output_dir / f"render_{angle_label}_f{frame_num:04d}.png"
-    scene.render.filepath = str(render_path)
-    bpy.ops.render.render(write_still=True)
-    
-    # Generate Canny edges using PIL edge detection
-    img = Image.open(render_path).convert('L')
-    edges = img.filter(ImageFilter.FIND_EDGES)
-    canny_path = output_dir / f"canny_{angle_label}_f{frame_num:04d}.png"
-    edges.save(canny_path)
-    maps['canny'] = canny_path
-    maps['render'] = render_path
+    maps['pose'] = pose_path
     
     return maps
 
