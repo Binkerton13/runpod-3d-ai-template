@@ -82,6 +82,32 @@ def wait_for_completion(base_url, prompt_id, max_wait=600, check_interval=2):
     log(f"ERROR: Prompt execution timed out after {max_wait} seconds")
     return False
 
+def copy_generated_files(comfyui_output_dir, project_output_dir, filename_prefix):
+    """Copy generated files from ComfyUI output folder to project directory"""
+    comfyui_dir = Path(comfyui_output_dir)
+    project_dir = Path(project_output_dir)
+    project_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all files matching the prefix
+    if not comfyui_dir.exists():
+        log(f"WARNING: ComfyUI output directory not found: {comfyui_dir}")
+        return []
+    
+    pattern = f"{filename_prefix}_*"
+    matching_files = list(comfyui_dir.glob(pattern))
+    
+    copied_files = []
+    for src_file in matching_files:
+        dst_file = project_dir / src_file.name
+        try:
+            shutil.copy2(src_file, dst_file)
+            log(f"  Copied: {src_file.name} -> {dst_file}")
+            copied_files.append(dst_file)
+        except Exception as e:
+            log(f"  ERROR copying {src_file.name}: {e}")
+    
+    return copied_files
+
 def load_workflow(workflow_path):
     """Load ComfyUI workflow from JSON file and convert to API format"""
     try:
@@ -246,6 +272,15 @@ def generate_texture_for_tile(comfyui_url, workflow_path, udim_tile, udim_config
     # Wait for completion
     if not wait_for_completion(comfyui_url, prompt_id):
         return False
+    
+    # Copy generated files from ComfyUI output to project directory
+    comfyui_output = "/opt/comfyui/output"
+    filename_prefix = f"texture_{udim_tile}" if texture_type == "diffuse" else f"{texture_type}_{udim_tile}"
+    copied_files = copy_generated_files(comfyui_output, output_dir, filename_prefix)
+    
+    if not copied_files:
+        log(f"WARNING: No files found with prefix '{filename_prefix}' in {comfyui_output}")
+        log(f"  Generated files may be in ComfyUI output folder but not copied to project")
     
     log(f"Successfully generated {texture_type} texture for tile {udim_tile}")
     return True

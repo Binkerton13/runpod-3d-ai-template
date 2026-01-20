@@ -249,20 +249,126 @@ def apply_unirig(mesh_obj, config):
 
 def create_basic_armature(mesh_obj):
     """
-    Fallback: Create a basic armature if UniRig fails
+    Fallback: Create a basic humanoid armature if UniRig fails
+    Creates spine, head, arms, and legs with proper hierarchy
     """
-    print("Creating basic fallback armature...")
-    bpy.ops.object.armature_add(location=(0, 0, 0))
+    print("Creating basic humanoid fallback armature...")
+    
+    # Get mesh bounds for bone sizing
+    bbox = [mesh_obj.matrix_world @ v.co for v in mesh_obj.data.vertices]
+    min_z = min(v.z for v in bbox)
+    max_z = max(v.z for v in bbox)
+    height = max_z - min_z
+    
+    # Create armature
+    bpy.ops.object.armature_add(location=(0, 0, min_z))
     armature = bpy.context.active_object
     armature.name = "Fallback_Armature"
     
-    # Parent mesh to armature
+    # Enter edit mode to create bones
+    bpy.ops.object.mode_set(mode='EDIT')
+    edit_bones = armature.data.edit_bones
+    
+    # Remove default bone
+    edit_bones.remove(edit_bones[0])
+    
+    # Create root bone
+    root = edit_bones.new('Root')
+    root.head = (0, 0, min_z)
+    root.tail = (0, 0, min_z + height * 0.1)
+    
+    # Spine chain
+    spine1 = edit_bones.new('Spine')
+    spine1.parent = root
+    spine1.head = root.tail
+    spine1.tail = (0, 0, min_z + height * 0.4)
+    
+    spine2 = edit_bones.new('Spine1')
+    spine2.parent = spine1
+    spine2.head = spine1.tail
+    spine2.tail = (0, 0, min_z + height * 0.6)
+    
+    # Neck and Head
+    neck = edit_bones.new('Neck')
+    neck.parent = spine2
+    neck.head = spine2.tail
+    neck.tail = (0, 0, min_z + height * 0.85)
+    
+    head = edit_bones.new('Head')
+    head.parent = neck
+    head.head = neck.tail
+    head.tail = (0, 0, max_z)
+    
+    # Left arm chain
+    l_shoulder = edit_bones.new('Shoulder.L')
+    l_shoulder.parent = spine2
+    l_shoulder.head = (0, 0, min_z + height * 0.6)
+    l_shoulder.tail = (height * 0.15, 0, min_z + height * 0.6)
+    
+    l_arm = edit_bones.new('UpperArm.L')
+    l_arm.parent = l_shoulder
+    l_arm.head = l_shoulder.tail
+    l_arm.tail = (height * 0.35, 0, min_z + height * 0.5)
+    
+    l_forearm = edit_bones.new('ForeArm.L')
+    l_forearm.parent = l_arm
+    l_forearm.head = l_arm.tail
+    l_forearm.tail = (height * 0.55, 0, min_z + height * 0.45)
+    
+    l_hand = edit_bones.new('Hand.L')
+    l_hand.parent = l_forearm
+    l_hand.head = l_forearm.tail
+    l_hand.tail = (height * 0.65, 0, min_z + height * 0.45)
+    
+    # Right arm chain (mirror)
+    for bone_name in ['Shoulder.L', 'UpperArm.L', 'ForeArm.L', 'Hand.L']:
+        r_name = bone_name.replace('.L', '.R')
+        l_bone = edit_bones[bone_name]
+        r_bone = edit_bones.new(r_name)
+        r_bone.head = (-l_bone.head.x, l_bone.head.y, l_bone.head.z)
+        r_bone.tail = (-l_bone.tail.x, l_bone.tail.y, l_bone.tail.z)
+        # Set parent
+        if l_bone.parent:
+            parent_name = l_bone.parent.name.replace('.L', '.R') if '.L' in l_bone.parent.name else l_bone.parent.name
+            r_bone.parent = edit_bones.get(parent_name)
+    
+    # Left leg chain
+    l_thigh = edit_bones.new('Thigh.L')
+    l_thigh.parent = root
+    l_thigh.head = (height * 0.1, 0, min_z + height * 0.1)
+    l_thigh.tail = (height * 0.1, 0, min_z + height * 0.5)
+    
+    l_shin = edit_bones.new('Shin.L')
+    l_shin.parent = l_thigh
+    l_shin.head = l_thigh.tail
+    l_shin.tail = (height * 0.1, 0, min_z + height * 0.05)
+    
+    l_foot = edit_bones.new('Foot.L')
+    l_foot.parent = l_shin
+    l_foot.head = l_shin.tail
+    l_foot.tail = (height * 0.1, height * 0.1, min_z)
+    
+    # Right leg chain (mirror)
+    for bone_name in ['Thigh.L', 'Shin.L', 'Foot.L']:
+        r_name = bone_name.replace('.L', '.R')
+        l_bone = edit_bones[bone_name]
+        r_bone = edit_bones.new(r_name)
+        r_bone.head = (-l_bone.head.x, l_bone.head.y, l_bone.head.z)
+        r_bone.tail = (-l_bone.tail.x, l_bone.tail.y, l_bone.tail.z)
+        if l_bone.parent:
+            parent_name = l_bone.parent.name.replace('.L', '.R') if '.L' in l_bone.parent.name else l_bone.parent.name
+            r_bone.parent = edit_bones.get(parent_name)
+    
+    # Return to object mode
+    bpy.ops.object.mode_set(mode='OBJECT')
+    
+    # Parent mesh to armature with automatic weights
     mesh_obj.select_set(True)
     armature.select_set(True)
     bpy.context.view_layer.objects.active = armature
     bpy.ops.object.parent_set(type='ARMATURE_AUTO')
     
-    print(f"Created fallback armature: {armature.name}")
+    print(f"Created fallback humanoid armature: {armature.name} (23 bones)")
     return armature
 
 
