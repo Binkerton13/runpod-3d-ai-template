@@ -50,9 +50,9 @@ class PipelineOrchestrator:
                 'output_dir': '3_animation'
             },
             'sprites': {
-                'name': 'Sprite Generation',
+                'name': 'AI-Enhanced Sprite Generation',
                 'required_for': ['skeletal'],
-                'script': 'tools/generate_sprites.py',
+                'script': 'tools/generate_sprites_enhanced.py',
                 'input_dir': '3_animation',
                 'output_dir': '5_sprites'  # Changed from 4_export/sprites
             },
@@ -276,9 +276,9 @@ class PipelineOrchestrator:
         
         # Define stage execution order
         if self.mesh_type == 'static':
-            stages_to_run = ['prep', 'textures', 'export']
+            stages_to_run = ['prep', 'export']
         else:  # skeletal
-            stages_to_run = ['prep', 'textures', 'rigging', 'animation', 'export', 'sprites']
+            stages_to_run = ['prep', 'rigging', 'animation', 'sprites', 'export']
         
         # Execute stages
         for stage_name in stages_to_run:
