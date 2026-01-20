@@ -2770,11 +2770,12 @@ async function runPipeline(forceRerun = false) {
             document.getElementById('pipelineStagesContainer').style.display = 'block';
             
             // Start polling for status
-            startStatusPolling();
+            startPipelineStatusPolling();
         } else {
             showError(data.error || 'Failed to start pipeline');
         }
     } catch (error) {
-        showError('Error starting pipeline');
+        console.error('Pipeline start error:', error);
+        showError('Error starting pipeline: ' + error.message);
     }
 }
