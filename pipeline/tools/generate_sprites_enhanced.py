@@ -87,11 +87,26 @@ def setup_render_settings(resolution, transparent_bg=True, samples=64):
     
     # Enable all available CUDA/OptiX devices
     prefs = bpy.context.preferences.addons['cycles'].preferences
-    prefs.compute_device_type = 'CUDA'  # or 'OPTIX' for RTX cards
-    prefs.get_devices()
     
-    for device in prefs.devices:
-        device.use = True  # Enable all GPUs
+    # Try CUDA first, then OptiX
+    for compute_type in ['CUDA', 'OPTIX', 'HIP']:
+        try:
+            prefs.compute_device_type = compute_type
+            prefs.get_devices()
+            
+            print(f"\n=== GPU Configuration ({compute_type}) ===")
+            devices_found = False
+            for device in prefs.devices:
+                print(f"  Device: {device.name} - Type: {device.type} - Use: {device.use}")
+                if device.type in ['CUDA', 'OPTIX', 'HIP']:
+                    device.use = True
+                    devices_found = True
+            
+            if devices_found:
+                print(f"✓ Using {compute_type} for GPU rendering")
+                break
+        except:
+            continue
     
     scene.cycles.samples = samples
     scene.render.resolution_x = resolution[0]
