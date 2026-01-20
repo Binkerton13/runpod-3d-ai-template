@@ -282,18 +282,22 @@ def analyze_mesh_geometry(mesh_obj):
     depth = max_y - min_y
     
     print(f"  Height: {height:.3f}, Width: {width:.3f}, Depth: {depth:.3f}")
+    print(f"  Mesh bounds: X[{min_x:.3f}, {max_x:.3f}], Y[{min_y:.3f}, {max_y:.3f}], Z[{min_z:.3f}, {max_z:.3f}]")
     
-    # Estimate anatomical proportions (standard humanoid)
+    # Use center of mesh as reference point (not min_z) to avoid offset issues
+    center_z = (min_z + max_z) / 2
+    
+    # Estimate anatomical proportions (standard humanoid) relative to center
     landmarks = {
-        'pelvis_height': min_z + height * 0.05,  # 5% from bottom
-        'hip_height': min_z + height * 0.50,  # Mid-height
-        'waist_height': min_z + height * 0.55,  # Just above hips
-        'chest_height': min_z + height * 0.70,  # Upper torso
-        'shoulder_height': min_z + height * 0.80,  # Shoulder level
-        'neck_height': min_z + height * 0.88,  # Base of neck
-        'head_top': max_z,  # Top of head
-        'knee_height': min_z + height * 0.25,  # Knee bend
-        'ankle_height': min_z + height * 0.05,  # Near floor
+        'pelvis_height': center_z - height * 0.45,  # Below center
+        'hip_height': center_z,  # At center
+        'waist_height': center_z + height * 0.05,  # Just above center
+        'chest_height': center_z + height * 0.20,  # Upper torso
+        'shoulder_height': center_z + height * 0.30,  # Shoulder level
+        'neck_height': center_z + height * 0.38,  # Base of neck
+        'head_top': center_z + height * 0.50,  # Top of head
+        'knee_height': center_z - height * 0.25,  # Below center
+        'ankle_height': center_z - height * 0.45,  # Near bottom
         'shoulder_width': width * 0.45,  # Distance from center to shoulder
         'hip_width': width * 0.18,  # Distance from center to hip
         'arm_length': height * 0.35,  # Full arm length
@@ -301,7 +305,13 @@ def analyze_mesh_geometry(mesh_obj):
         'leg_length': height * 0.45,  # Full leg length
         'center_x': center_x,
         'center_y': center_y,
+        'center_z': center_z,
+        'min_z': min_z,
+        'max_z': max_z,
     }
+    
+    print(f"  Using center-based coordinates: center_z={center_z:.3f}")
+    print(f"  Pelvis: {landmarks['pelvis_height']:.3f}, Hip: {landmarks['hip_height']:.3f}, Head: {landmarks['head_top']:.3f}")
     
     return landmarks
 

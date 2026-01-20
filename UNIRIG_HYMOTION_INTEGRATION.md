@@ -130,6 +130,134 @@ def create_basic_armature(mesh_obj):
 
 ---
 
+## Troubleshooting
+
+### Issue: Rig is Too Large and Offset on -Z Axis
+
+**Symptoms:**
+- Armature bones are way larger than the mesh
+- Bones positioned below the mesh (negative Z offset)
+- Logs show "Fallback_Armature" instead of "UniRig_Armature"
+
+**Root Cause:**
+You're getting the fallback armature, not UniRig. This happens when:
+
+1. **UniRig Not Installed**: Check if `/workspace/unirig/` exists
+   ```bash
+   ls -la /workspace/unirig/launch/inference/
+   ```
+
+2. **UniRig Scripts Not Executable**: Shell scripts need permissions
+   ```bash
+   chmod +x /workspace/unirig/launch/inference/*.sh
+   ```
+
+3. **UniRig Dependencies Missing**: Python packages not installed
+   ```bash
+   cd /workspace/unirig
+   pip install -r requirements.txt
+   ```
+
+4. **GPU Memory Issues**: UniRig needs 8GB+ VRAM
+   ```bash
+   nvidia-smi  # Check VRAM usage
+   ```
+
+**How to Verify Which Rig is Being Used:**
+
+Check the log output for:
+```
+=== UniRig Auto-Rigging ===          # ✓ Using UniRig
+Running UniRig skeleton prediction...
+Skeleton generation complete
+UniRig rigging complete: UniRig_Armature
+```
+
+VS
+
+```
+WARNING: UniRig not found at /workspace/unirig     # ✗ Using fallback
+Running in test/development mode - using fallback armature
+Creating basic humanoid fallback armature...
+Created anatomically-aligned armature with 20 bones
+```
+
+**Fix for Fallback Armature Z-Offset:**
+
+The fallback previously used `min_z + height * percentage` which caused offset issues when mesh origin isn't at world origin. **Fixed in latest version** to use mesh center as reference:
+
+```python
+# Now uses:
+center_z = (min_z + max_z) / 2
+landmarks = {
+    'pelvis_height': center_z - height * 0.45,  # From center
+    'hip_height': center_z,
+    'head_top': center_z + height * 0.50,
+    # ...
+}
+```
+
+### Issue: UniRig Skeleton Prediction Fails
+
+**Error**: "Skeleton generation failed"
+
+**Common Causes:**
+
+1. **Non-Manifold Geometry**: Mesh has holes or overlapping faces
+   - Fix: Run `validate_and_clean_mesh()` before rigging
+   - Or manually: Edit Mode → Select All → Mesh → Clean Up → Merge by Distance
+
+2. **Mesh Too Complex**: >100K vertices can cause timeout
+   - Fix: Decimate mesh to 50K-80K vertices
+   - Blender: Add Decimate Modifier → Ratio: 0.5
+
+3. **Unsupported Mesh Format**: UniRig works best with `.glb`, `.fbx`, `.obj`
+   - Fix: Export mesh as FBX with "Apply Modifiers" enabled
+
+4. **Model Checkpoint Not Downloaded**: First run downloads from Hugging Face
+   - Fix: Check `/workspace/unirig/checkpoints/` for model files
+   - Manually download if network issues:
+   ```bash
+   cd /workspace/unirig
+   python -c "from src.model import load_model; load_model()"
+   ```
+
+### Issue: Skinning Weights Incorrect
+
+**Error**: "Skinning generation failed" or mesh deforms strangely
+
+**Cause**: Skeleton doesn't match mesh topology (missing tail, wings, etc.)
+
+**Solution**: Manually edit skeleton before skinning stage
+
+1. After skeleton generation, open `skeleton.fbx` in Blender
+2. Add/remove bones as needed (tail, wings, extra limbs)
+3. Save and continue to skinning stage
+4. UniRig will adapt weights to your edited skeleton
+
+### Issue: HY-Motion Animations are Placeholders
+
+**Symptom**: Animation files are just copies of the rigged mesh
+
+**Cause**: HY-Motion model not installed
+
+**Fix**:
+```bash
+cd /workspace
+git clone https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git hy-motion
+cd hy-motion
+
+# Download model checkpoint
+mkdir -p ckpts/tencent
+cd ckpts/tencent
+wget https://huggingface.co/tencent/HY-Motion-1.0-Lite/resolve/main/model.safetensors
+
+# Or for full model:
+wget https://huggingface.co/tencent/HY-Motion-1.0/resolve/main/model.safetensors
+```
+
+---
+
 ## How HY-Motion Integration Works
 
 ### Workflow in hy_motion.py
