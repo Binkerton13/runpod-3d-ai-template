@@ -142,11 +142,11 @@ sed -i '/flash_attn/d' requirements.txt
 # Install dependencies
 echo "Installing UniRig dependencies..."
 if [ -n "$VIRTUAL_ENV" ]; then
-    # Use --no-user to avoid site-packages conflicts
-    pip install --no-user --upgrade -r requirements.txt
+    # Use --user with --ignore-installed to bypass precedence check
+    pip install --user --ignore-installed --upgrade -r requirements.txt
 else
     # Use system Python
-    python3 -m pip install --upgrade -r requirements.txt
+    python3 -m pip install --user --upgrade -r requirements.txt
 fi
 
 # Download UniRig models if not present
@@ -200,10 +200,10 @@ fi
 if [ -f "requirements.txt" ]; then
     echo "Installing HY-Motion dependencies..."
     if [ -n "$VIRTUAL_ENV" ]; then
-        # Use --no-user to avoid site-packages conflicts
-        pip install --no-user --upgrade -r requirements.txt
+        # Use --user with --ignore-installed to bypass precedence check
+        pip install --user --ignore-installed --upgrade -r requirements.txt
     else
-        python3 -m pip install --upgrade -r requirements.txt
+        python3 -m pip install --user --upgrade -r requirements.txt
     fi
 else
     echo -e "${YELLOW}No requirements.txt found in HY-Motion repo${NC}"
