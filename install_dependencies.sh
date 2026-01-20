@@ -33,10 +33,26 @@ echo -e "${YELLOW}[1/3] Installing Pillow for Blender...${NC}"
 echo ""
 
 # Find Blender's Python
-BLENDER_PYTHON="/opt/blender/4.0/python/bin/python3.10"
+BLENDER_PYTHON=""
 
-if [ ! -f "$BLENDER_PYTHON" ]; then
-    echo -e "${YELLOW}Blender Python not found at $BLENDER_PYTHON${NC}"
+# Try common Blender installation paths
+POSSIBLE_PATHS=(
+    "/opt/blender-4.0.2-linux-x64/4.0/python/bin/python3.10"
+    "/opt/blender/4.0/python/bin/python3.10"
+    "/opt/blender-4.0/python/bin/python3.10"
+    "/usr/local/blender/4.0/python/bin/python3.10"
+)
+
+for path in "${POSSIBLE_PATHS[@]}"; do
+    if [ -f "$path" ]; then
+        BLENDER_PYTHON="$path"
+        break
+    fi
+done
+
+# If not found in common paths, search
+if [ -z "$BLENDER_PYTHON" ]; then
+    echo -e "${YELLOW}Blender Python not found in common locations${NC}"
     echo "Searching for Blender installation..."
     
     # Try to find Blender
@@ -46,12 +62,16 @@ if [ ! -f "$BLENDER_PYTHON" ]; then
         exit 1
     fi
     
-    # Get Blender's Python path
-    BLENDER_DIR=$(dirname $(dirname $BLENDER_PATH))
-    BLENDER_PYTHON=$(find $BLENDER_DIR -name "python3.*" -type f | grep "bin/python" | head -n1)
+    # Get Blender's Python path - follow symlink to real installation
+    BLENDER_REAL=$(readlink -f "$BLENDER_PATH")
+    BLENDER_DIR=$(dirname $(dirname "$BLENDER_REAL"))
+    BLENDER_PYTHON=$(find "$BLENDER_DIR" -path "*/python/bin/python3.*" -type f 2>/dev/null | head -n1)
     
     if [ -z "$BLENDER_PYTHON" ]; then
         echo -e "${RED}ERROR: Could not locate Blender's Python interpreter${NC}"
+        echo "Blender found at: $BLENDER_PATH"
+        echo "Real path: $BLENDER_REAL"
+        echo "Searched in: $BLENDER_DIR"
         exit 1
     fi
 fi
