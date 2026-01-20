@@ -220,15 +220,20 @@ REQUIRED_MODELS = {
 
 ## 🔧 Installation & Setup
 
+⚠️ **POST-LAUNCH SETUP**: Run these commands **AFTER** deploying your RunPod pod to keep the container image small.
+
 ### 1. Core Dependencies (Required)
 
-Install Pillow, UniRig, and HY-Motion:
+SSH into your RunPod container and install Pillow, UniRig, and HY-Motion:
 
 ```bash
+# SSH into pod (use RunPod's SSH button or terminal)
 cd /workspace
 chmod +x install_dependencies.sh
 ./install_dependencies.sh
 ```
+
+✅ **Installation completes in ~5 minutes** (without model downloads)
 
 Or install manually - see **[DEPENDENCIES.md](DEPENDENCIES.md)** for detailed instructions.
 
@@ -240,7 +245,9 @@ Required:
 - 6 custom nodes (AnimateDiff, IP-Adapter, ControlNet, etc.)
 - ~20 GB AI models (motion, ControlNet, checkpoints)
 
-### 3. AI Model Downloads (Optional)
+### 3. AI Model Downloads (Optional - For Production)
+
+⚠️ **Skip for testing**: The pipeline works in fallback mode without these models.
 
 **UniRig Models** (~5 GB):
 - Visit: https://github.com/VAST-AI-Research/UniRig#download-models
@@ -251,6 +258,8 @@ Required:
 - Visit: https://github.com/Tencent-Hunyuan/HY-Motion-1.0#model-download
 - Place in: `/workspace/hy-motion/models/`
 - Without models: Creates placeholder animations
+
+💡 **Download inside the pod** to save bandwidth on pod restarts (models persist in `/workspace` volume).
 
 ## 🐛 Troubleshooting
 

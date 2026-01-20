@@ -2,9 +2,17 @@
 
 This guide covers installing the three required dependencies for the 3D AI pipeline on RunPod.
 
+⚠️ **IMPORTANT**: These dependencies are installed **AFTER** the pod is launched, not during the Docker build. This keeps the container image small (~10 GB) and allows for faster deployments.
+
+## When to Run This
+
+1. **First pod launch**: Run immediately after starting your pod
+2. **After container updates**: If you pull a new container version
+3. **Testing mode**: Can skip model downloads and use fallback modes
+
 ## Automated Installation (Recommended)
 
-Run the installation script:
+SSH into your RunPod container and run:
 
 ```bash
 cd /workspace
@@ -196,6 +204,12 @@ chown -R $USER:$USER /workspace/hy-motion
 | **TOTAL** | | | **~20 GB** |
 
 Ensure you have at least **25 GB** free space on `/workspace` for all dependencies.
+
+💡 **Why Post-Launch Installation?**
+- Keeps container image small (~10 GB vs ~30 GB)
+- Faster GitHub package hosting and deployment
+- Pay for storage only when pod is running
+- Can choose to skip models for testing (saves ~20 GB)
 
 ---
 

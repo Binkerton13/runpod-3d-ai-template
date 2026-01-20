@@ -7,6 +7,9 @@
 # 1. Pillow (for Blender sprite generation)
 # 2. UniRig (automatic rigging)
 # 3. HY-Motion (text-to-animation)
+#
+# IMPORTANT: This script runs AFTER pod deployment to keep the container small.
+# Run this inside your RunPod container after it launches.
 # ================================================================================
 
 set -e  # Exit on error
