@@ -35,7 +35,7 @@ def mesh_validation():
     print("\n[1.5] Validating mesh...")
 
     cmd = (
-        "blender -b --python tools/validate_mesh.py "
+        "blender -b --python pipeline/tools/validate_mesh.py "
         f"-- {CONFIG['clean_fbx']}"
     )
 
@@ -178,7 +178,7 @@ def validate_rig():
     print("\n[2.5] Validating rig...")
 
     cmd = (
-        "blender -b --python tools/validate_rig.py "
+        "blender -b --python pipeline/tools/validate_rig.py "
         f"-- {CONFIG['rig_output']['fbx']}"
     )
 
@@ -190,7 +190,7 @@ def fix_joint_orientation():
     print("\n[3] Fixing joint orientation...")
 
     cmd = (
-        "blender -b --python tools/fix_joint_orientation.py "
+        "blender -b --python pipeline/tools/fix_joint_orientation.py "
         f"-- {CONFIG['rig_output']['fbx']}"
     )
 
@@ -202,7 +202,7 @@ def smooth_weights():
     print("\n[3.5] Smoothing skin weights...")
 
     cmd = (
-        "blender -b --python tools/smooth_weights.py "
+        "blender -b --python pipeline/tools/smooth_weights.py "
         f"-- {CONFIG['rig_output_clean']}"
     )
 
