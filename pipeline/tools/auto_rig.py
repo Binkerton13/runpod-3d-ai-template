@@ -140,43 +140,49 @@ def validate_and_clean_mesh(mesh_obj):
 
 def apply_unirig(mesh_obj, config):
     """
-    Apply UniRig auto-rigging using subprocess calls to UniRig scripts
+    Full UniRig pipeline:
+    1. Export mesh to FBX
+    2. Run UniRig skeleton inference (ML)
+    3. Run UniRig skinning inference (ML)
+    4. Merge using Blender + UniRig merge.py
+    5. Import final rig
     """
+
     import subprocess
     import tempfile
-    
+    import os
+    from pathlib import Path
+    import bpy
+
     print("\n=== UniRig Auto-Rigging ===")
-    
+
     rigging_config = config.get('rigging', {})
-    preset = rigging_config.get('preset', 'humanoid')
     seed = rigging_config.get('seed', 42)
-    
-    print(f"Rigging preset: {preset}")
-    print(f"Random seed: {seed}")
-    
-    # Check if UniRig is available
-    unirig_script = Path("/workspace/unirig/launch/inference/generate_skeleton.sh")
-    if not unirig_script.exists():
-        print("WARNING: UniRig not found at /workspace/unirig")
-        print("Running in test/development mode - using fallback armature")
-        print("In production, UniRig will be installed at /workspace/unirig")
+
+    unirig_root = Path("/workspace/unirig")
+    run_py = unirig_root / "run.py"
+
+    if not run_py.exists():
+        print("ERROR: UniRig not installed at /workspace/unirig")
         return create_basic_armature(mesh_obj)
-    
-    # Verify merge.sh script exists
-    merge_script = Path("/workspace/unirig/launch/inference/merge.sh")
-    if not merge_script.exists():
-        print(f"WARNING: merge.sh not found at {merge_script}")
-        print("Falling back to basic armature")
+
+    # Configs for ML inference
+    skeleton_cfg = unirig_root / "configs/task/quick_inference_skeleton_articulationxl_ar_256.yaml"
+    skin_cfg     = unirig_root / "configs/task/quick_inference_unirig_skin.yaml"
+
+    if not skeleton_cfg.exists() or not skin_cfg.exists():
+        print("ERROR: UniRig config files missing")
         return create_basic_armature(mesh_obj)
-    
-    # Create temporary directory for UniRig processing
+
     with tempfile.TemporaryDirectory() as tmpdir:
+
+        # Paths
         temp_input = f"{tmpdir}/input_mesh.fbx"
-        temp_skeleton = f"{tmpdir}/skeleton.fbx"
-        temp_skin = f"{tmpdir}/skin.fbx"
+        skeleton_npz = f"{tmpdir}/predict_skeleton.npz"
+        skin_npz = f"{tmpdir}/predict_skin.npz"
         temp_output = f"{tmpdir}/rigged.fbx"
-        
-        # Export current mesh to temporary FBX
+
+        # Step 0 — Export mesh
         print("Exporting mesh for UniRig...")
         bpy.ops.export_scene.fbx(
             filepath=temp_input,
@@ -185,116 +191,107 @@ def apply_unirig(mesh_obj, config):
             path_mode='COPY',
             embed_textures=True
         )
-        
-        # Step 1: Generate skeleton
-        print("Running UniRig skeleton prediction...")
+
+        # Step 1 — Skeleton inference (ML)
+        print("Running UniRig skeleton inference...")
         skeleton_cmd = [
-            "bash", "/workspace/unirig/launch/inference/generate_skeleton.sh",
+            "python3", str(run_py),
+            "--config", str(skeleton_cfg),
             "--input", temp_input,
-            "--output", temp_skeleton,
+            "--output_dir", tmpdir,
             "--seed", str(seed)
         ]
-        
+
         try:
             result = subprocess.run(skeleton_cmd, check=True, capture_output=True, text=True)
-            print("Skeleton generation complete")
-            if result.stdout:
-                print(result.stdout)
+            print(result.stdout)
         except subprocess.CalledProcessError as e:
-            print(f"ERROR: Skeleton generation failed: {e}")
-            print(f"stdout: {e.stdout}")
-            print(f"stderr: {e.stderr}")
-            # Fall back to basic armature
+            print("ERROR: Skeleton inference failed")
+            print(e.stderr)
             return create_basic_armature(mesh_obj)
-        
-        # Step 2: Generate skinning weights
-        print("Running UniRig skinning prediction...")
+
+        if not os.path.exists(skeleton_npz):
+            print("ERROR: Skeleton NPZ not created")
+            return create_basic_armature(mesh_obj)
+
+        # Step 2 — Skinning inference (ML)
+        print("Running UniRig skinning inference...")
         skin_cmd = [
-            "bash", "/workspace/unirig/launch/inference/generate_skin.sh",
-            "--input", temp_skeleton,
-            "--output", temp_skin
+            "python3", str(run_py),
+            "--config", str(skin_cfg),
+            "--input", temp_input,
+            "--output_dir", tmpdir
         ]
-        
+
         try:
             result = subprocess.run(skin_cmd, check=True, capture_output=True, text=True)
-            print("Skinning generation complete")
-            if result.stdout:
-                print(result.stdout)
+            print(result.stdout)
         except subprocess.CalledProcessError as e:
-            print(f"ERROR: Skinning generation failed: {e}")
-            print(f"stdout: {e.stdout}")
-            print(f"stderr: {e.stderr}")
-            # Use skeleton without skinning
-            temp_skin = temp_skeleton
-        
-        # Step 3: Merge rigged result back with original mesh
+            print("ERROR: Skinning inference failed")
+            print(e.stderr)
+            return create_basic_armature(mesh_obj)
+
+        if not os.path.exists(skin_npz):
+            print("ERROR: Skin NPZ not created")
+            return create_basic_armature(mesh_obj)
+
+        # Step 3 — Merge inside Blender
         print("Merging UniRig results...")
+
+        merge_expr = (
+            "import sys, os, numpy as np; "
+            "sys.path.append('/workspace/unirig'); "
+            "from src.inference.merge import merge; "
+            f"raw_skin = np.load(r'{skin_npz}', allow_pickle=True); "
+            f"raw_data = np.load(r'{skeleton_npz}', allow_pickle=True); "
+            "merge("
+            f"path=r'{temp_input}', "
+            f"output_path=r'{temp_output}', "
+            "vertices=raw_skin['vertices'], "
+            "joints=raw_skin['joints'], "
+            "skin=raw_skin['skin'], "
+            "parents=raw_data['parents'], "
+            "names=raw_data['names'], "
+            "tails=raw_data['tails'], "
+            "add_root=False, "
+            "is_vrm=(raw_data['cls']=='vroid')"
+            ");"
+        )
+
         merge_cmd = [
             "blender", "--background",
-            "--python-expr",
-            (
-                "import sys, os, numpy as np; "
-                "sys.path.append('/workspace/unirig'); "
-                "from src.inference.merge import merge; "
-                f"raw_skin = np.load(r'{temp_skin}', allow_pickle=True); "
-                f"raw_data = np.load(r'{temp_input}', allow_pickle=True); "
-                "merge("
-                f"path=r'{temp_input}', "
-                f"output_path=r'{temp_output}', "
-                "vertices=raw_skin['vertices'], "
-                "joints=raw_skin['joints'], "
-                "skin=raw_skin['skin'], "
-                "parents=raw_data['parents'], "
-                "names=raw_data['names'], "
-                "tails=raw_data['tails'], "
-                "add_root=False, "
-                "is_vrm=(raw_data['cls']=='vroid')"
-                ");"
-            )
-        ]       
+            "--python-expr", merge_expr
+        ]
+
         try:
             result = subprocess.run(merge_cmd, check=True, capture_output=True, text=True)
-            print("Merge command completed")
-            if result.stdout:
-                print(result.stdout)
-            if result.stderr:
-                print(f"stderr: {result.stderr}")
-            
-            # Verify output file was created
-            if not os.path.exists(temp_output):
-                print(f"ERROR: Merge completed but output file not created: {temp_output}")
-                print(f"Temp directory contents: {os.listdir(tmpdir)}")
-                print("Falling back to basic armature")
-                return create_basic_armature(mesh_obj)
-                print("Falling back to basic armature")
-                return create_basic_armature(mesh_obj)
-            
-            file_size = os.path.getsize(temp_output)
-            print(f"Merge complete - output file: {temp_output} ({file_size} bytes)")
-            
+            print(result.stdout)
+            print(result.stderr)
         except subprocess.CalledProcessError as e:
-            print(f"ERROR: Merge failed: {e}")
-            print(f"stdout: {e.stdout}")
-            print(f"stderr: {e.stderr}")
+            print("ERROR: Merge failed")
+            print(e.stderr)
             return create_basic_armature(mesh_obj)
-        
-        # Import the rigged result
+
+        if not os.path.exists(temp_output):
+            print("ERROR: Merge did not produce output FBX")
+            return create_basic_armature(mesh_obj)
+
+        # Step 4 — Import final rig
         print("Importing rigged mesh...")
         clear_scene()
         bpy.ops.import_scene.fbx(filepath=temp_output)
-        
-        # Find the imported armature
+
         armature = None
         for obj in bpy.context.scene.objects:
             if obj.type == 'ARMATURE':
                 armature = obj
                 armature.name = "UniRig_Armature"
                 break
-        
+
         if not armature:
-            print("WARNING: No armature found in UniRig output, creating basic armature")
+            print("WARNING: No armature found, falling back")
             return create_basic_armature(mesh_obj)
-        
+
         print(f"UniRig rigging complete: {armature.name}")
         return armature
 
