@@ -233,10 +233,23 @@ def apply_unirig(mesh_obj, config):
             "blender", "--background",
             "--python-expr",
             (
-                "import sys, os; "
+                "import sys, os, numpy as np; "
                 "sys.path.append('/workspace/unirig'); "
                 "from src.inference.merge import merge; "
-                f"merge(source=r'{temp_skin}', target=r'{temp_input}', output=r'{temp_output}')"
+                f"raw_skin = np.load(r'{temp_skin}', allow_pickle=True); "
+                f"raw_data = np.load(r'{temp_input}', allow_pickle=True); "
+                "merge("
+                f"path=r'{temp_input}', "
+                f"output_path=r'{temp_output}', "
+                "vertices=raw_skin['vertices'], "
+                "joints=raw_skin['joints'], "
+                "skin=raw_skin['skin'], "
+                "parents=raw_data['parents'], "
+                "names=raw_data['names'], "
+                "tails=raw_data['tails'], "
+                "add_root=False, "
+                "is_vrm=(raw_data['cls']=='vroid')"
+                ");"
             )
         ]       
         try:
