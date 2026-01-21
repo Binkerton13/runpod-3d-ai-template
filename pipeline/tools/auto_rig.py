@@ -230,10 +230,9 @@ def apply_unirig(mesh_obj, config):
         # Step 3: Merge rigged result back with original mesh
         print("Merging UniRig results...")
         merge_cmd = [
-            "bash", "-c",
-            f"cd /workspace/unirig && bash launch/inference/merge.sh --source {temp_skin} --target {temp_input} --output {temp_output}"
-        ]
-        
+            "blender", "--background", "--python", "/workspace/unirig/src/inference/merge.py", "--",
+            "--source", temp_skin, "--target", temp_input, "--output", temp_output
+        ]        
         try:
             result = subprocess.run(merge_cmd, check=True, capture_output=True, text=True)
             print("Merge command completed")
