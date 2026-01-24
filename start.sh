@@ -64,6 +64,17 @@ if [ ! -d "/workspace/pipeline" ]; then
   chown -R app:app /workspace/pipeline /workspace/config || true
 fi
 
+# ================================================================================
+# Run dependency installer (UniRig, HY-Motion, Blender deps, Transformers fix)
+# ================================================================================
+
+if [ -f "/workspace/pipeline/install_dependencies.sh" ]; then
+  echo "Running install_dependencies.sh..."
+  bash /workspace/pipeline/install_dependencies.sh
+else
+  echo "WARNING: install_dependencies.sh not found at /workspace/pipeline/"
+fi
+
 # Download models if requested
 if [ "${MODEL_DOWNLOAD_ON_START:-0}" = "1" ]; then
   echo "MODEL_DOWNLOAD_ON_START=1: downloading configured model URLs"
