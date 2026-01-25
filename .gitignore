@@ -214,8 +214,9 @@ logs/
 custom_nodes/
 archive/
 
+
 # Docker
-Dockerfile*
+# (Do not ignore Dockerfile or Dockerfile.runpod)
 start.sh
 supervisord.conf
 *.sh
