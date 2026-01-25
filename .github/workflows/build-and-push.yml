@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - 'Dockerfile.runpod'
+      - '/spriteforge/Dockerfile.runpod'
       - 'Dockerfile'
       - 'file_browser.py'
       - 'supervisord.conf'
