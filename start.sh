@@ -23,7 +23,7 @@ mkdir -p "$PIPELINE_DST" \
          "$COMFY_MODELS" \
          /workspace/animations \
          /workspace/sprites \
-         /workspace/logs
+         /workspace/pipeline/logs \
 
 # Copy pipeline to workspace on first run
 if [ ! -f "$PIPELINE_DST/.initialized" ]; then
