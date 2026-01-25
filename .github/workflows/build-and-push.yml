@@ -4,29 +4,41 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - './Dockerfile.runpod'
+      - 'Dockerfile.runpod'
       - 'Dockerfile'
       - 'file_browser.py'
       - 'supervisord.conf'
       - 'start.sh'
       - 'pipeline/**'
-      - 'config/**'
+      - 'pipeline/gui/**'
+      - 'pipeline/scripts/**'
+      - 'animations/**'
+      - 'archive/**'
+      - 'custom_nodes/**'
+      - 'models/**'
+      - 'sprites/**'
+      - 'logs/**'
       - '.github/workflows/**'
-      - 'scripts/**'
 
   push:
     branches: [main]
     tags: ['v*']
     paths:
-      - './Dockerfile.runpod'
+      - 'Dockerfile.runpod'
       - 'Dockerfile'
       - 'file_browser.py'
       - 'supervisord.conf'
       - 'start.sh'
       - 'pipeline/**'
-      - 'config/**'
+      - 'pipeline/gui/**'
+      - 'pipeline/scripts/**'
+      - 'animations/**'
+      - 'archive/**'
+      - 'custom_nodes/**'
+      - 'models/**'
+      - 'sprites/**'
+      - 'logs/**'
       - '.github/workflows/**'
-      - 'scripts/**'
 
   workflow_dispatch: {}
 
