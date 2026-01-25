@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - '/spriteforge/Dockerfile.runpod'
+      - 'spriteforge/Dockerfile.runpod'
       - 'Dockerfile'
       - 'file_browser.py'
       - 'supervisord.conf'
@@ -13,13 +13,12 @@ on:
       - 'config/**'
       - '.github/workflows/**'
       - 'scripts/**'
+
   push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+    branches: [main]
+    tags: ['v*']
     paths:
-      - 'Dockerfile.runpod'
+      - 'spriteforge/Dockerfile.runpod'
       - 'Dockerfile'
       - 'file_browser.py'
       - 'supervisord.conf'
@@ -28,6 +27,7 @@ on:
       - 'config/**'
       - '.github/workflows/**'
       - 'scripts/**'
+
   workflow_dispatch: {}
 
 concurrency:
@@ -39,10 +39,15 @@ permissions:
   packages: write
 
 jobs:
+
+  # ------------------------------------------------------------
+  # PR BUILD (NO PUSH)
+  # ------------------------------------------------------------
   pr-verify:
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
-    name: PR - Build verification (no push)
+    name: PR Build Verification
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,11 +58,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Build Dockerfile.runpod (CPU) — verify build only
+      - name: Verify Dockerfile.runpod builds (CPU only)
         uses: docker/build-push-action@v5
         with:
-          context: ./
-          file: ./Dockerfile.runpod
+          context: .
+          file: ./spriteforge/Dockerfile.runpod
           platforms: linux/amd64
           push: false
           load: false
@@ -66,10 +71,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # ------------------------------------------------------------
+  # MAIN BUILD + PUSH TO GHCR
+  # ------------------------------------------------------------
   build-and-push:
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
-    name: Build and push images
+    name: Build and Push to GHCR
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -92,50 +101,46 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Debug - show GitHub context and Docker versions
+      - name: Debug Info
         run: |
-          echo "github.event_name=${{ github.event_name }}"
           echo "github.ref=${{ github.ref }}"
           echo "github.ref_name=${{ github.ref_name }}"
-          docker --version || true
-          docker buildx version || true
+          docker --version
+          docker buildx version
 
-      - name: Log in to GitHub Container Registry using GITHUB_TOKEN
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Convert repository owner to lowercase
+      - name: Lowercase repository owner
         id: repo_owner
         run: |
           echo "owner_lc=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
-      - name: Determine tags
+      - name: Compute tags
         id: tags
         run: |
-          OWNER_LC="${{ steps.repo_owner.outputs.owner_lc }}"
-          REF_NAME="${{ github.ref_name }}"
+          OWNER="${{ steps.repo_owner.outputs.owner_lc }}"
+          REF="${{ github.ref_name }}"
           SHA="${{ github.sha }}"
-          
-          # Always include branch name and SHA tags
 
-          TAGS="ghcr.io/${OWNER_LC}/spriteforge:${REF_NAME}"
-          TAGS="${TAGS},ghcr.io/${OWNER_LC}/spriteforge:${SHA}"
-          
-          # Add 'latest' tag only for main branch
-          if [ "${REF_NAME}" = "main" ]; then
-            TAGS="${TAGS},ghcr.io/${OWNER_LC}/spriteforge:latest"
+          TAGS="ghcr.io/${OWNER}/spriteforge:${REF}"
+          TAGS="${TAGS},ghcr.io/${OWNER}/spriteforge:${SHA}"
+
+          if [ "${REF}" = "main" ]; then
+            TAGS="${TAGS},ghcr.io/${OWNER}/spriteforge:latest"
           fi
-          
+
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Build and push image
         uses: docker/build-push-action@v5
         with:
-          context: ./
-          file: ./Dockerfile.runpod
+          context: .
+          file: ./spriteforge/Dockerfile.runpod
           platforms: linux/amd64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
@@ -145,5 +150,5 @@ jobs:
           cache-to: type=gha,mode=max
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.description=RunPod 3D AI Workstation with ComfyUI and File Browser
+            org.opencontainers.image.description=SpriteForge — AI 2D Animation Workstation
             org.opencontainers.image.licenses=MIT
