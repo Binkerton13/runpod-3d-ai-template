@@ -64,6 +64,10 @@ echo "==============================================="
 echo ""
 
 
+
+# Extra safety: ensure log directory exists before launching supervisord
+mkdir -p /workspace/pipeline/logs
+
 # Debug: show directory and permissions before starting supervisord
 echo "Listing /workspace/pipeline/logs before starting supervisord:"
 ls -l /workspace/pipeline/logs || echo "/workspace/pipeline/logs does not exist!"
