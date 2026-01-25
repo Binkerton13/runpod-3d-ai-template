@@ -120,12 +120,13 @@ jobs:
           SHA="${{ github.sha }}"
           
           # Always include branch name and SHA tags
-          TAGS="ghcr.io/${OWNER_LC}/3d-ai-workstation:${REF_NAME}"
-          TAGS="${TAGS},ghcr.io/${OWNER_LC}/3d-ai-workstation:${SHA}"
+
+          TAGS="ghcr.io/${OWNER_LC}/spriteforge:${REF_NAME}"
+          TAGS="${TAGS},ghcr.io/${OWNER_LC}/spriteforge:${SHA}"
           
           # Add 'latest' tag only for main branch
           if [ "${REF_NAME}" = "main" ]; then
-            TAGS="${TAGS},ghcr.io/${OWNER_LC}/3d-ai-workstation:latest"
+            TAGS="${TAGS},ghcr.io/${OWNER_LC}/spriteforge:latest"
           fi
           
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
