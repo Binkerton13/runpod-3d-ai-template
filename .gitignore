@@ -76,7 +76,6 @@ archive/
 # ------------------------------
 # Do NOT ignore Dockerfile or Dockerfile.runpod
 !Dockerfile
-!Dockerfile.runpod
 
 # Ignore shell scripts EXCEPT start.sh
 *.sh

@@ -93,7 +93,6 @@ yarn-error.log
 # Docker
 # ------------------------------
 docker-compose.yml
-DockerFiles/
 *.sh
 !start.sh        # keep start.sh if needed in container
 
