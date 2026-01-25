@@ -139,7 +139,7 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v5
         with:
-          context: ./spriteforge
+          context: .
           file: Dockerfile.runpod
           platforms: linux/amd64
           push: true
