@@ -97,8 +97,13 @@ echo " - SpriteForge GUI on port 5000"
 echo "==============================================="
 echo ""
 
+# Ensure pipeline destination is a directory
+if [ -f "$PIPELINE_DST" ]; then
+    echo "ERROR: $PIPELINE_DST exists as a file. Removing it."
+    rm -f "$PIPELINE_DST"
+fi
 
-
+mkdir -p "$PIPELINE_DST"
 
 # Extra safety: ensure all required runtime directories exist before launching supervisord
 mkdir -p \
