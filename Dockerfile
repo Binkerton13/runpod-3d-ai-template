@@ -53,14 +53,20 @@ RUN pip install --no-cache-dir -r /opt/requirements.txt
 # ============================================
 # FRONTEND — Node build stage (NEW + REQUIRED)
 # ============================================
-FROM node:18 AS frontend
+FROM node:20 AS frontend
 
-WORKDIR /opt/pipeline/gui/frontend
+WORKDIR /app
 
-COPY pipeline/gui/frontend/package*.json ./
+# Copy only package files first
+COPY package.json package-lock.json ./
+
+# Install dependencies cleanly
 RUN npm install
 
-COPY pipeline/gui/frontend .
+# Now copy the rest of the source
+COPY . .
+
+# Build
 RUN npm run build
 
 
