@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 import MotionPage from './pages/MotionPage.vue'
 import SpritePage from './pages/SpritePage.vue'
 import ModelPage from './pages/ModelPage.vue'
-import WorkflowPage from './pages/WorkflowPage.vue'
 import ProjectPage from './pages/ProjectPage.vue'
 import WorkflowGraphPage from './pages/WorkflowGraphPage.vue'
 
@@ -14,7 +13,6 @@ export const router = createRouter({
     { path: '/', redirect: '/motion' },
     { path: '/motion', component: MotionPage },
     { path: '/sprites', component: SpritePage },
-    { path: '/workflows', component: WorkflowPage },
     { path: '/models', component: ModelPage },
     { path: '/projects', component: ProjectPage },
     { path: '/workflows/graph', component: WorkflowGraphPage },
