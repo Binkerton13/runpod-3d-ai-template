@@ -10,7 +10,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import FileBrowserModal from '../FileBrowser/FileBrowserModal.vue'
+import FileBrowserModal from './FileBrowser/FileBrowserModal.vue'
 
 const open = ref(false)
 
