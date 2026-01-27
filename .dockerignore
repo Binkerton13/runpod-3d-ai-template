@@ -79,6 +79,7 @@ loras/
 # ==========================================
 # Node modules (if UI uses JS tooling)
 # ==========================================
+**/node_modules
 node_modules/
 npm-debug.log
 yarn-error.log
