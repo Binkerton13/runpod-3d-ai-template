@@ -7,5 +7,10 @@
 </template>
 
 <script setup>
-const model = defineProps(['model']).model
+const { model } = defineProps({
+  model: {
+    type: Object,
+    required: true
+  }
+})
 </script>

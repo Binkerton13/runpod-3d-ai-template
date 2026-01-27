@@ -5,7 +5,6 @@
     <nav>
       <router-link to="/motion" class="item" active-class="active">Motion</router-link>
       <router-link to="/sprites" class="item" active-class="active">Sprites</router-link>
-      <router-link to="/workflows" class="item" active-class="active">Workflows</router-link>
       <router-link to="/models" class="item" active-class="active">Models</router-link>
       <router-link to="/projects" class="item" active-class="active">Projects</router-link>
       <router-link to="/workflows/graph" class="item">Workflow Graph</router-link>

@@ -4,14 +4,15 @@
 
     <div class="main">
       <TopBar />
+
+      <!-- This must be the ONLY router-view -->
       <div class="content">
         <router-view />
       </div>
     </div>
-    <div class="content">
-      <router-view />
-      <TaskQueue />
-    </div>
+
+    <!-- TaskQueue must NOT wrap or sit inside the router-view column -->
+    <TaskQueue />
   </div>
 </template>
 

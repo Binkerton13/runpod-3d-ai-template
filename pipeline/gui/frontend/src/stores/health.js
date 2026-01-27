@@ -9,7 +9,13 @@ export const useHealthStore = defineStore('health', {
 
   actions: {
     async check() {
-      this.online = await pingBackend()
+      try {
+        const result = await checkHealth()
+        this.online = result?.status === 'ok'
+      } catch (err) {
+        this.online = false
+      }
+
       this.lastCheck = Date.now()
     },
 

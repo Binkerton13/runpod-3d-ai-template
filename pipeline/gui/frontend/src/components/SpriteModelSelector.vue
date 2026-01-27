@@ -1,6 +1,7 @@
 <template>
   <div class="panel">
     <h2>Model</h2>
+
     <select v-model="model.selectedModel">
       <option disabled value="">Select a model</option>
       <option v-for="m in model.models" :key="m" :value="m">
@@ -11,5 +12,10 @@
 </template>
 
 <script setup>
-const model = defineProps(['model']).model
+const { model } = defineProps({
+  model: {
+    type: Object,
+    required: true
+  }
+})
 </script>

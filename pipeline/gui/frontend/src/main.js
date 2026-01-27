@@ -1,8 +1,13 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { watch } from 'vue'
+
 import App from './App.vue'
-import { router } from './router'
+import router from './router'
 import './theme.css'
+import '@vue-flow/core/dist/style.css'
+import '@vue-flow/controls/dist/style.css'
+import '@vue-flow/minimap/dist/style.css'
 
 import { registerShortcuts } from './shortcuts'
 
@@ -17,11 +22,14 @@ import { useSettingsStore } from './stores/settings'
 
 const app = createApp(App)
 const pinia = createPinia()
-const settings = useSettingsStore()
-settings.load()
 
+// Install Pinia BEFORE using any store
 app.use(pinia)
 app.use(router)
+
+// Now it's safe to use stores
+const settings = useSettingsStore()
+settings.load()
 
 // Register stores globally for shortcuts
 app.config.globalProperties.$motion = useMotionStore()
@@ -36,6 +44,10 @@ registerShortcuts(app)
 
 app.mount('#app')
 
-watch(() => settings.theme, (theme) => {
-  document.documentElement.classList.toggle('light', theme === 'light')
-})
+// Theme watcher
+watch(
+  () => settings.theme,
+  (theme) => {
+    document.documentElement.classList.toggle('light', theme === 'light')
+  }
+)
