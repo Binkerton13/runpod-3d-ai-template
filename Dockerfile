@@ -51,19 +51,19 @@ RUN pip install --no-cache-dir -r /opt/requirements.txt
 
 
 # ============================================
-# FRONTEND — Node build stage (NEW + REQUIRED)
+# FRONTEND — Node build stage
 # ============================================
 FROM node:20 AS frontend
 
 WORKDIR /app
 
 # Copy only package files first
-COPY --from=frontend /app/dist /opt/pipeline/gui/static
+COPY pipeline/gui/frontend/package.json pipeline/gui/frontend/package-lock.json ./
 
 # Install dependencies cleanly
 RUN npm install
 
-# Copy the rest of the frontend source (WITHOUT node_modules)
+# Copy the rest of the frontend source (node_modules should be ignored via .dockerignore)
 COPY pipeline/gui/frontend ./
 
 # Build the frontend
@@ -120,8 +120,8 @@ COPY --from=deps /opt/venv /opt/venv
 COPY --from=builder /opt/comfyui /opt/comfyui
 COPY --from=builder /opt/hy-motion ${WORKSPACE}/hy-motion
 
-# Copy built frontend (NEW)
-COPY --from=frontend /opt/pipeline/gui/frontend/dist /opt/pipeline/gui/static
+# Copy built frontend (correct path from frontend stage)
+COPY --from=frontend /app/dist /opt/pipeline/gui/static
 
 # Persistent workspace folders
 RUN mkdir -p \
