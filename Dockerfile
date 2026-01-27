@@ -27,14 +27,12 @@ RUN git lfs install --system || true
 # ============================================
 FROM base AS python
 
-# Create venv
 RUN python3 -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip wheel setuptools
 
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
-# Install PyTorch separately for maximum caching
 ARG USE_CUDA=1
 RUN if [ "${USE_CUDA}" = "1" ]; then \
         pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121; \
@@ -44,7 +42,7 @@ RUN if [ "${USE_CUDA}" = "1" ]; then \
 
 
 # ============================================
-# PYTHON DEPS — requirements.txt (changes sometimes)
+# PYTHON DEPS — requirements.txt
 # ============================================
 FROM python AS deps
 
@@ -53,7 +51,21 @@ RUN pip install --no-cache-dir -r /opt/requirements.txt
 
 
 # ============================================
-# BUILDER — ComfyUI + HY-Motion (rarely changes)
+# FRONTEND — Node build stage (NEW + REQUIRED)
+# ============================================
+FROM node:18 AS frontend
+
+WORKDIR /opt/pipeline/gui/frontend
+
+COPY pipeline/gui/frontend/package*.json ./
+RUN npm install
+
+COPY pipeline/gui/frontend .
+RUN npm run build
+
+
+# ============================================
+# BUILDER — ComfyUI + HY-Motion
 # ============================================
 FROM deps AS builder
 
@@ -73,20 +85,9 @@ RUN if [ -f "/opt/hy-motion/requirements.txt" ]; then \
         pip install --no-cache-dir -r /opt/hy-motion/requirements.txt; \
     fi
 
-# --- Build frontend ---
-WORKDIR /opt/pipeline/gui/frontend
-
-# Install dependencies (including VueFlow)
-RUN npm install @vue-flow/core @vue-flow/controls @vue-flow/minimap
-
-# Install the rest of the project deps
-RUN npm install
-
-# Build the frontend
-RUN npm run build
 
 # ============================================
-# RUNTIME — minimal + fast (changes often)
+# RUNTIME — minimal + fast
 # ============================================
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 AS runtime
 
@@ -113,6 +114,9 @@ COPY --from=deps /opt/venv /opt/venv
 COPY --from=builder /opt/comfyui /opt/comfyui
 COPY --from=builder /opt/hy-motion ${WORKSPACE}/hy-motion
 
+# Copy built frontend (NEW)
+COPY --from=frontend /opt/pipeline/gui/frontend/dist /opt/pipeline/gui/static
+
 # Persistent workspace folders
 RUN mkdir -p \
     ${WORKSPACE}/models \
@@ -124,7 +128,7 @@ RUN mkdir -p \
 # Install ComfyUI Manager persistently
 RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git /workspace/custom_nodes/ComfyUI-Manager
 
-# Copy SpriteForge runtime files (changes frequently → bottom of Dockerfile)
+# Copy SpriteForge runtime files
 COPY file_browser.py /usr/local/bin/file_browser.py
 COPY supervisord.conf /etc/supervisord.conf
 COPY pipeline /opt/pipeline
