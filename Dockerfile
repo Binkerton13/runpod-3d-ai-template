@@ -84,21 +84,6 @@ RUN mkdir -p /opt/comfyui/custom_nodes && \
     git clone https://github.com/cubiq/ComfyUI_essentials.git && \
     git clone https://github.com/WASasquatch/was-node-suite-comfyui.git
 
-# Install ComfyUI dependencies from requirements.txt (may be incomplete)
-# After creating /opt/venv
-RUN /opt/venv/bin/pip install --no-cache-dir -r /opt/comfyui/requirements.txt || true
-
-RUN /opt/venv/bin/pip install --no-cache-dir \
-    sqlalchemy \
-    alembic \
-    deepdiff \
-    toml \
-    piexif \
-    blend_modes \
-    python-dotenv \
-    fastapi \
-    uvicorn \
-    aiohttp
 
 # --- HY-Motion ---
 RUN git clone https://github.com/Tencent-Hunyuan/HY-Motion-1.0.git /opt/hy-motion
@@ -128,12 +113,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN git lfs install --system || true
 
-# Copy Python environment
+# Copy Python environment (base venv)
 COPY --from=deps /opt/venv /opt/venv
 
 # Copy ComfyUI + HY-Motion
 COPY --from=builder /opt/comfyui /opt/comfyui
 COPY --from=builder /opt/hy-motion ${WORKSPACE}/hy-motion
+
+# Install ComfyUI dependencies INTO the runtime venv
+RUN /opt/venv/bin/pip install --no-cache-dir -r /opt/comfyui/requirements.txt || true
+
+RUN /opt/venv/bin/pip install --no-cache-dir \
+    sqlalchemy \
+    alembic \
+    deepdiff \
+    toml \
+    piexif \
+    blend_modes \
+    python-dotenv \
+    fastapi \
+    uvicorn \
+    aiohttp
 
 # Copy built frontend (correct path from frontend stage)
 COPY --from=frontend /app/dist /opt/pipeline/gui/static
