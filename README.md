@@ -107,7 +107,7 @@ sitecustomize.py
 /sprites
 /logs
 
-spriteforge/
+///spriteforge/
 ├── .dockerignore
 ├── .git/
 ├── .github/
@@ -201,7 +201,7 @@ spriteforge/
 ├── sprites/
 ├── start.sh
 ├── supervisord.conf
-├── validate.py
+├── validate.py///
 ---
 
 
