@@ -107,8 +107,8 @@ sitecustomize.py
 /sprites
 /logs
 
-///spriteforge/
-├── .dockerignore
+///spriteforge////
+///├── .dockerignore///
 ├── .git/
 ├── .github/
 ├── .gitignore
